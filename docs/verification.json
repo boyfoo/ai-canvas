@@ -1,0 +1,67 @@
+{
+  "date": "2026-10-30",
+  "sourceCommit": "b3b6e2e380cb13cead3b7eb0d9c479a0f7125fad",
+  "build": {
+    "typecheckPassed": true,
+    "productionBuildPassed": true,
+    "fullMediaResources": true,
+    "warnings": [
+      "Some production chunks exceed 500 kB; bundle-size optimization was not part of this extraction."
+    ]
+  },
+  "unitTests": {
+    "passed": 126,
+    "failed": 0,
+    "files": 8,
+    "log": ".local/test.log"
+  },
+  "browser": {
+    "passed": true,
+    "fixture": true,
+    "realModelCalls": false,
+    "checks": [
+      "production canvas opens without Wails",
+      "node title can be edited",
+      "node dragging works",
+      "model settings route opens",
+      "reference storage and depth service settings remain reachable",
+      "/assets supporting page opens",
+      "/skills supporting page opens",
+      "/plugins supporting page opens"
+    ],
+    "errors": [],
+    "unknownFixtureEndpoints": [
+      "GET /assistant/status",
+      "POST /assistant/ui-session",
+      "GET /tasks",
+      "GET /beefapi/connection"
+    ]
+  },
+  "sourceBoundary": {
+    "retainedModules": 846,
+    "missingImports": [],
+    "removedSourceFiles": 104,
+    "missingProtectedFiles": [],
+    "modifiedProtectedFiles": [
+      "src/pages/canvas/canvas-assistant-outputs.tsx",
+      "src/pages/canvas/index.tsx",
+      "src/pages/canvas/use-canvas-document-state.ts",
+      "src/pages/canvas/use-canvas-node-editor.ts",
+      "src/components/canvas/canvas-project-card.tsx",
+      "src/components/canvas/canvas-subtitle-dialog.tsx",
+      "src/components/canvas/canvas-timeline-dialog.tsx",
+      "src/components/canvas/director/use-director-save-coordinator.ts",
+      "src/components/canvas/nodes/upscale-node.tsx",
+      "src/lib/canvas/canvas-export.ts"
+    ]
+  },
+  "notVerified": [
+    "Real paid model generation",
+    "Real assistant host execution",
+    "Actual object-storage uploads",
+    "Actual depth processing service",
+    "End-to-end server persistence and SSE reconnection"
+  ],
+  "backendIntegration": "All existing API clients retained; six /canvas-host endpoints are adapter contracts, not backend implementations.",
+  "upstreamWorkingTree": "clean"
+}

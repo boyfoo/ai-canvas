@@ -1,0 +1,18 @@
+.canvas-host-nav {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 20px;
+    align-items: center;
+    min-height: 44px;
+    padding: 8px 20px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+}
+
+.canvas-host-nav a {
+    white-space: nowrap;
+    color: var(--muted-foreground);
+}
+
+.canvas-host-nav a:hover { color: var(--foreground); }

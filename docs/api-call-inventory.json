@@ -1,0 +1,1709 @@
+{
+  "note": "Static call sites, not a complete server specification. RAW/FETCH and dynamic expressions require manual review.",
+  "entries": [
+    {
+      "method": "DELETE",
+      "endpoint": "`/canvas-projects/${encodeURIComponent(id)}`",
+      "file": "src/lib/canvas/canvas-archive-restore.ts",
+      "line": 167
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "folder.coverDataUrl",
+      "file": "src/lib/canvas/canvas-archive-restore.ts",
+      "line": 250
+    },
+    {
+      "method": "RAW",
+      "endpoint": "{\n            method: \"get\",\n            url: `/resources/${encodeURIComponent(resourceId)}/file?proxy=1`,\n            responseType: \"blob\",\n        }",
+      "file": "src/lib/canvas/canvas-drawing-storage.ts",
+      "line": 889
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "dataUrl",
+      "file": "src/lib/canvas/canvas-emotion.ts",
+      "line": 424
+    },
+    {
+      "method": "RAW",
+      "endpoint": "{ method: \"GET\", url: `/resources/${encodeURIComponent(folder.coverResourceId)}/file?proxy=1`, responseType: \"blob\", signal: options.signal }",
+      "file": "src/lib/canvas/canvas-export.ts",
+      "line": 126
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "folder.coverDataUrl",
+      "file": "src/lib/canvas/canvas-export.ts",
+      "line": 129
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "dataUrl",
+      "file": "src/lib/canvas/canvas-face-detection.ts",
+      "line": 32
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "url.replace(/\\?import(?:&.*)?$/, \"\")",
+      "file": "src/lib/canvas/canvas-face-detector.worker.ts",
+      "line": 31
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "dataUrl",
+      "file": "src/lib/canvas/canvas-folder-storage.ts",
+      "line": 281
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "url",
+      "file": "src/lib/canvas/canvas-generation-task-sync.ts",
+      "line": 131
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "source",
+      "file": "src/lib/canvas/canvas-video-frame.ts",
+      "line": 156
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "input.url",
+      "file": "src/lib/canvas/canvas-video-merge.ts",
+      "line": 38
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "source.url",
+      "file": "src/lib/canvas/canvas-video-segment.ts",
+      "line": 37
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "url",
+      "file": "src/lib/plugins/builtin/eagle.ts",
+      "line": 219
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "localUrl",
+      "file": "src/lib/reference-media-metadata.ts",
+      "line": 45
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "source.url",
+      "file": "src/lib/timeline/timeline-export.ts",
+      "line": 30
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "source",
+      "file": "src/lib/video-poster.ts",
+      "line": 256
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "source",
+      "file": "src/pages/canvas/canvas-project-clipboard.ts",
+      "line": 13
+    },
+    {
+      "method": "SSE",
+      "endpoint": "`${apiBaseURL}/canvas-projects/${encodeURIComponent(projectId)}/events`",
+      "file": "src/pages/canvas/use-canvas-document-state.ts",
+      "line": 94
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/canvas-projects/${encodeURIComponent(canvasId)}`",
+      "file": "src/pages/canvas/use-canvas-media-tools.ts",
+      "line": 239
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "url",
+      "file": "src/pages/canvas/use-canvas-media-tools.ts",
+      "line": 268
+    },
+    {
+      "method": "PUT",
+      "endpoint": "`/assets/${encodeURIComponent(asset.id)}`",
+      "file": "src/pages/canvas/use-canvas-upload.ts",
+      "line": 358
+    },
+    {
+      "method": "PUT",
+      "endpoint": "`/assets/${encodeURIComponent(resolvedAssetId)}`",
+      "file": "src/pages/canvas/use-canvas-upload.ts",
+      "line": 941
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "resourceFileUrl(artifact.resourceId)",
+      "file": "src/pages/projects/detail/workflow-production-workbench.tsx",
+      "line": 721
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "dataUrl",
+      "file": "src/services/agent-image-preview.ts",
+      "line": 55
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/assistant/turns/${encodeURIComponent(turnId)}/proposals/${encodeURIComponent(proposal.proposalId)}/production`",
+      "file": "src/services/api/agent-assistant.ts",
+      "line": 97
+    },
+    {
+      "method": "GET",
+      "endpoint": "/assistant/status",
+      "file": "src/services/api/agent-assistant.ts",
+      "line": 246
+    },
+    {
+      "method": "POST",
+      "endpoint": "/assistant/host/restart",
+      "file": "src/services/api/agent-assistant.ts",
+      "line": 258
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/assistant/sessions?canvasId=${encodeURIComponent(canvasId)}`",
+      "file": "src/services/api/agent-assistant.ts",
+      "line": 263
+    },
+    {
+      "method": "POST",
+      "endpoint": "/assistant/sessions",
+      "file": "src/services/api/agent-assistant.ts",
+      "line": 267
+    },
+    {
+      "method": "POST",
+      "endpoint": "/assistant/sessions/activate",
+      "file": "src/services/api/agent-assistant.ts",
+      "line": 273
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/assistant/history?${query.toString()}`",
+      "file": "src/services/api/agent-assistant.ts",
+      "line": 281
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/assistant/turns/${encodeURIComponent(turnId)}/undo`",
+      "file": "src/services/api/agent-assistant.ts",
+      "line": 300
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/assistant/turns/${encodeURIComponent(turnId)}/proposals/${encodeURIComponent(proposalId)}/run`",
+      "file": "src/services/api/agent-assistant.ts",
+      "line": 317
+    },
+    {
+      "method": "POST",
+      "endpoint": "/assistant/ui-session",
+      "file": "src/services/api/agent-assistant.ts",
+      "line": 358
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "`${apiBaseURL}/assistant/chat`",
+      "file": "src/services/api/agent-assistant.ts",
+      "line": 504
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "`${apiBaseURL}/assistant/cancel`",
+      "file": "src/services/api/agent-assistant.ts",
+      "line": 635
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "`${apiBaseURL}/assistant/steer`",
+      "file": "src/services/api/agent-assistant.ts",
+      "line": 655
+    },
+    {
+      "method": "GET",
+      "endpoint": "/public/appearance",
+      "file": "src/services/api/appearance.ts",
+      "line": 34
+    },
+    {
+      "method": "POST",
+      "endpoint": "/assistant/continuations",
+      "file": "src/services/api/assistant-continuation.ts",
+      "line": 8
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/assistant/continuations/${encodeURIComponent(id)}/manifest`",
+      "file": "src/services/api/assistant-continuation.ts",
+      "line": 11
+    },
+    {
+      "method": "GET",
+      "endpoint": "/assistant/continuations",
+      "file": "src/services/api/assistant-continuation.ts",
+      "line": 14
+    },
+    {
+      "method": "POST",
+      "endpoint": "/assistant/continuations/cancel",
+      "file": "src/services/api/assistant-continuation.ts",
+      "line": 17
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "resultUrl",
+      "file": "src/services/api/audio.ts",
+      "line": 102
+    },
+    {
+      "method": "GET",
+      "endpoint": "/beefapi/connection",
+      "file": "src/services/api/beefapi-connection.ts",
+      "line": 44
+    },
+    {
+      "method": "POST",
+      "endpoint": "/beefapi/connection/start",
+      "file": "src/services/api/beefapi-connection.ts",
+      "line": 50
+    },
+    {
+      "method": "POST",
+      "endpoint": "/beefapi/connection/cancel",
+      "file": "src/services/api/beefapi-connection.ts",
+      "line": 55
+    },
+    {
+      "method": "POST",
+      "endpoint": "/beefapi/connection/disconnect",
+      "file": "src/services/api/beefapi-connection.ts",
+      "line": 60
+    },
+    {
+      "method": "POST",
+      "endpoint": "/beefapi/connection/open-wallet",
+      "file": "src/services/api/beefapi-connection.ts",
+      "line": 64
+    },
+    {
+      "method": "GET",
+      "endpoint": "/canvas-workflows",
+      "file": "src/services/api/canvas-workflows.ts",
+      "line": 59
+    },
+    {
+      "method": "POST",
+      "endpoint": "/canvas-workflows",
+      "file": "src/services/api/canvas-workflows.ts",
+      "line": 60
+    },
+    {
+      "method": "DELETE",
+      "endpoint": "workflowPath(id)",
+      "file": "src/services/api/canvas-workflows.ts",
+      "line": 61
+    },
+    {
+      "method": "GET",
+      "endpoint": "`${workflowPath(id)}/runs`",
+      "file": "src/services/api/canvas-workflows.ts",
+      "line": 62
+    },
+    {
+      "method": "POST",
+      "endpoint": "`${workflowPath(id)}/runs`",
+      "file": "src/services/api/canvas-workflows.ts",
+      "line": 63
+    },
+    {
+      "method": "GET",
+      "endpoint": "runPath(id)",
+      "file": "src/services/api/canvas-workflows.ts",
+      "line": 64
+    },
+    {
+      "method": "POST",
+      "endpoint": "`${runPath(id)}/select-image`",
+      "file": "src/services/api/canvas-workflows.ts",
+      "line": 65
+    },
+    {
+      "method": "POST",
+      "endpoint": "`${runPath(id)}/retry`",
+      "file": "src/services/api/canvas-workflows.ts",
+      "line": 66
+    },
+    {
+      "method": "POST",
+      "endpoint": "`${runPath(id)}/cancel`",
+      "file": "src/services/api/canvas-workflows.ts",
+      "line": 67
+    },
+    {
+      "method": "GET",
+      "endpoint": "`${workflowPath(id)}/editor`",
+      "file": "src/services/api/canvas-workflows.ts",
+      "line": 68
+    },
+    {
+      "method": "PUT",
+      "endpoint": "workflowPath(id)",
+      "file": "src/services/api/canvas-workflows.ts",
+      "line": 69
+    },
+    {
+      "method": "POST",
+      "endpoint": "/canvas-workflows/validate",
+      "file": "src/services/api/canvas-workflows.ts",
+      "line": 70
+    },
+    {
+      "method": "GET",
+      "endpoint": "/canvas-workflow-operations",
+      "file": "src/services/api/canvas-workflows.ts",
+      "line": 71
+    },
+    {
+      "method": "GET",
+      "endpoint": "/creation-conversations",
+      "file": "src/services/api/creation-conversations.ts",
+      "line": 35
+    },
+    {
+      "method": "GET",
+      "endpoint": "path(id)",
+      "file": "src/services/api/creation-conversations.ts",
+      "line": 36
+    },
+    {
+      "method": "PUT",
+      "endpoint": "path(id)",
+      "file": "src/services/api/creation-conversations.ts",
+      "line": 38
+    },
+    {
+      "method": "DELETE",
+      "endpoint": "path(id)",
+      "file": "src/services/api/creation-conversations.ts",
+      "line": 40
+    },
+    {
+      "method": "POST",
+      "endpoint": "/creation-conversations/import",
+      "file": "src/services/api/creation-conversations.ts",
+      "line": 42
+    },
+    {
+      "method": "POST",
+      "endpoint": "/creation-runs",
+      "file": "src/services/api/creation-runs.ts",
+      "line": 24
+    },
+    {
+      "method": "GET",
+      "endpoint": "path(id)",
+      "file": "src/services/api/creation-runs.ts",
+      "line": 25
+    },
+    {
+      "method": "GET",
+      "endpoint": "/creation-runs",
+      "file": "src/services/api/creation-runs.ts",
+      "line": 26
+    },
+    {
+      "method": "PATCH",
+      "endpoint": "path(id)",
+      "file": "src/services/api/creation-runs.ts",
+      "line": 27
+    },
+    {
+      "method": "POST",
+      "endpoint": "`${path(id)}/claim`",
+      "file": "src/services/api/creation-runs.ts",
+      "line": 28
+    },
+    {
+      "method": "POST",
+      "endpoint": "`${path(id)}/heartbeat`",
+      "file": "src/services/api/creation-runs.ts",
+      "line": 29
+    },
+    {
+      "method": "POST",
+      "endpoint": "`${path(id)}/release`",
+      "file": "src/services/api/creation-runs.ts",
+      "line": 30
+    },
+    {
+      "method": "POST",
+      "endpoint": "`${path(id)}/proposal-approve`",
+      "file": "src/services/api/creation-runs.ts",
+      "line": 31
+    },
+    {
+      "method": "POST",
+      "endpoint": "`${path(id)}/proposal-invalidate`",
+      "file": "src/services/api/creation-runs.ts",
+      "line": 32
+    },
+    {
+      "method": "POST",
+      "endpoint": "`${path(id)}/canvas`",
+      "file": "src/services/api/creation-runs.ts",
+      "line": 33
+    },
+    {
+      "method": "POST",
+      "endpoint": "`${path(id)}/submissions/prepare`",
+      "file": "src/services/api/creation-runs.ts",
+      "line": 34
+    },
+    {
+      "method": "POST",
+      "endpoint": "`${path(id)}/submissions/approve`",
+      "file": "src/services/api/creation-runs.ts",
+      "line": 35
+    },
+    {
+      "method": "POST",
+      "endpoint": "`${path(id)}/execute`",
+      "file": "src/services/api/creation-runs.ts",
+      "line": 36
+    },
+    {
+      "method": "GET",
+      "endpoint": "`${path(id)}/canvas-snapshot`",
+      "file": "src/services/api/creation-runs.ts",
+      "line": 37
+    },
+    {
+      "method": "POST",
+      "endpoint": "`${path(id)}/canvas-commit`",
+      "file": "src/services/api/creation-runs.ts",
+      "line": 38
+    },
+    {
+      "method": "POST",
+      "endpoint": "/depth-captures",
+      "file": "src/services/api/depth-capture.ts",
+      "line": 8
+    },
+    {
+      "method": "GET",
+      "endpoint": "/plugins/eagle/library",
+      "file": "src/services/api/eagle.ts",
+      "line": 41
+    },
+    {
+      "method": "GET",
+      "endpoint": "/plugins/eagle/items",
+      "file": "src/services/api/eagle.ts",
+      "line": 45
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "`${String(apiBaseURL).replace(/\\/+$/, \"\")}/plugins/eagle/items/${encodeURIComponent(itemId)}/file?baseUrl=${encodeURIComponent(baseUrl)}`",
+      "file": "src/services/api/eagle.ts",
+      "line": 65
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/plugins/eagle/items?baseUrl=${encodeURIComponent(baseUrl)}`",
+      "file": "src/services/api/eagle.ts",
+      "line": 80
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/plugins/eagle/folders?baseUrl=${encodeURIComponent(baseUrl)}`",
+      "file": "src/services/api/eagle.ts",
+      "line": 84
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "url",
+      "file": "src/services/api/generation-task.ts",
+      "line": 414
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "sourceUrl",
+      "file": "src/services/api/generation-task.ts",
+      "line": 430
+    },
+    {
+      "method": "POST",
+      "endpoint": "managed ? \"/beefapi/connection/models\" : \"/ai/models\"",
+      "file": "src/services/api/image-models.ts",
+      "line": 91
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "request.url",
+      "file": "src/services/api/image-streaming.ts",
+      "line": 19
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "request.url",
+      "file": "src/services/api/image-streaming.ts",
+      "line": 52
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "request.url",
+      "file": "src/services/api/image-streaming.ts",
+      "line": 87
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "request.url",
+      "file": "src/services/api/image-streaming.ts",
+      "line": 153
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/canvas-projects/${encodeURIComponent(projectId)}/import/libtv`",
+      "file": "src/services/api/libtv.ts",
+      "line": 56
+    },
+    {
+      "method": "GET",
+      "endpoint": "/media-upscale/capabilities",
+      "file": "src/services/api/media-upscale.ts",
+      "line": 13
+    },
+    {
+      "method": "POST",
+      "endpoint": "/media-upscale/estimate",
+      "file": "src/services/api/media-upscale.ts",
+      "line": 14
+    },
+    {
+      "method": "POST",
+      "endpoint": "/media-upscale/tasks",
+      "file": "src/services/api/media-upscale.ts",
+      "line": 19
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/media-upscale/tasks/${encodeURIComponent(taskId)}/recover`",
+      "file": "src/services/api/media-upscale.ts",
+      "line": 25
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/ops/${encodeURIComponent(op)}`",
+      "file": "src/services/api/operations.ts",
+      "line": 28
+    },
+    {
+      "method": "GET",
+      "endpoint": "/plugins/catalog",
+      "file": "src/services/api/plugin-catalog.ts",
+      "line": 30
+    },
+    {
+      "method": "GET",
+      "endpoint": "/plugins",
+      "file": "src/services/api/plugins.ts",
+      "line": 38
+    },
+    {
+      "method": "GET",
+      "endpoint": "/plugins/status",
+      "file": "src/services/api/plugins.ts",
+      "line": 42
+    },
+    {
+      "method": "POST",
+      "endpoint": "/plugins",
+      "file": "src/services/api/plugins.ts",
+      "line": 48
+    },
+    {
+      "method": "PUT",
+      "endpoint": "`/plugins/${encodeURIComponent(id)}/activation`",
+      "file": "src/services/api/plugins.ts",
+      "line": 53
+    },
+    {
+      "method": "DELETE",
+      "endpoint": "`/plugins/${encodeURIComponent(id)}`",
+      "file": "src/services/api/plugins.ts",
+      "line": 58
+    },
+    {
+      "method": "GET",
+      "endpoint": "/projects",
+      "file": "src/services/api/projects.ts",
+      "line": 338
+    },
+    {
+      "method": "GET",
+      "endpoint": "/project-folders",
+      "file": "src/services/api/projects.ts",
+      "line": 341
+    },
+    {
+      "method": "POST",
+      "endpoint": "/project-folders",
+      "file": "src/services/api/projects.ts",
+      "line": 342
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/duplicate`",
+      "file": "src/services/api/projects.ts",
+      "line": 343
+    },
+    {
+      "method": "PATCH",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/folder`",
+      "file": "src/services/api/projects.ts",
+      "line": 344
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/projects/${encodeURIComponent(id)}`",
+      "file": "src/services/api/projects.ts",
+      "line": 347
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/projects/${encodeURIComponent(id)}/core`",
+      "file": "src/services/api/projects.ts",
+      "line": 351
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/units`",
+      "file": "src/services/api/projects.ts",
+      "line": 355
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/overview`",
+      "file": "src/services/api/projects.ts",
+      "line": 359
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/units/${encodeURIComponent(unitId)}/workspace`",
+      "file": "src/services/api/projects.ts",
+      "line": 363
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/canvases`",
+      "file": "src/services/api/projects.ts",
+      "line": 367
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/assets`",
+      "file": "src/services/api/projects.ts",
+      "line": 371
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/assets`",
+      "file": "src/services/api/projects.ts",
+      "line": 383
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/asset-candidates`",
+      "file": "src/services/api/projects.ts",
+      "line": 387
+    },
+    {
+      "method": "POST",
+      "endpoint": "/projects",
+      "file": "src/services/api/projects.ts",
+      "line": 443
+    },
+    {
+      "method": "PATCH",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}`",
+      "file": "src/services/api/projects.ts",
+      "line": 447
+    },
+    {
+      "method": "DELETE",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}`",
+      "file": "src/services/api/projects.ts",
+      "line": 451
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/units`",
+      "file": "src/services/api/projects.ts",
+      "line": 455
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/units/${encodeURIComponent(unitId)}`",
+      "file": "src/services/api/projects.ts",
+      "line": 459
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/units/import`",
+      "file": "src/services/api/projects.ts",
+      "line": 463
+    },
+    {
+      "method": "PATCH",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/units/reorder`",
+      "file": "src/services/api/projects.ts",
+      "line": 467
+    },
+    {
+      "method": "PATCH",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/units/${encodeURIComponent(unitId)}`",
+      "file": "src/services/api/projects.ts",
+      "line": 471
+    },
+    {
+      "method": "DELETE",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/units/${encodeURIComponent(unitId)}`",
+      "file": "src/services/api/projects.ts",
+      "line": 475
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/canvas-links`",
+      "file": "src/services/api/projects.ts",
+      "line": 479
+    },
+    {
+      "method": "DELETE",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/canvas-links/${encodeURIComponent(canvasId)}/units/${encodeURIComponent(unitId)}`",
+      "file": "src/services/api/projects.ts",
+      "line": 483
+    },
+    {
+      "method": "DELETE",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/canvases/${encodeURIComponent(canvasId)}`",
+      "file": "src/services/api/projects.ts",
+      "line": 487
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/assets`",
+      "file": "src/services/api/projects.ts",
+      "line": 491
+    },
+    {
+      "method": "DELETE",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/assets/${encodeURIComponent(assetId)}`",
+      "file": "src/services/api/projects.ts",
+      "line": 495
+    },
+    {
+      "method": "PATCH",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/assets/${encodeURIComponent(assetId)}`",
+      "file": "src/services/api/projects.ts",
+      "line": 499
+    },
+    {
+      "method": "PATCH",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/assets/${encodeURIComponent(assetId)}`",
+      "file": "src/services/api/projects.ts",
+      "line": 503
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/asset-folders`",
+      "file": "src/services/api/projects.ts",
+      "line": 507
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/asset-folders`",
+      "file": "src/services/api/projects.ts",
+      "line": 511
+    },
+    {
+      "method": "PATCH",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/asset-folders/${encodeURIComponent(folderId)}`",
+      "file": "src/services/api/projects.ts",
+      "line": 515
+    },
+    {
+      "method": "DELETE",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/asset-folders/${encodeURIComponent(folderId)}`",
+      "file": "src/services/api/projects.ts",
+      "line": 519
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/assets/${encodeURIComponent(assetId)}/versions`",
+      "file": "src/services/api/projects.ts",
+      "line": 523
+    },
+    {
+      "method": "GET",
+      "endpoint": "/voice-profiles",
+      "file": "src/services/api/projects.ts",
+      "line": 527
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/characters`",
+      "file": "src/services/api/projects.ts",
+      "line": 531
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/characters/${encodeURIComponent(assetId)}`",
+      "file": "src/services/api/projects.ts",
+      "line": 535
+    },
+    {
+      "method": "PATCH",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/characters/${encodeURIComponent(assetId)}`",
+      "file": "src/services/api/projects.ts",
+      "line": 539
+    },
+    {
+      "method": "PUT",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/characters/${encodeURIComponent(assetId)}/representations`",
+      "file": "src/services/api/projects.ts",
+      "line": 543
+    },
+    {
+      "method": "PUT",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/characters/${encodeURIComponent(assetId)}/voice`",
+      "file": "src/services/api/projects.ts",
+      "line": 547
+    },
+    {
+      "method": "DELETE",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/characters/${encodeURIComponent(assetId)}/voice`",
+      "file": "src/services/api/projects.ts",
+      "line": 551
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/workflows`",
+      "file": "src/services/api/projects.ts",
+      "line": 555
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/shots`",
+      "file": "src/services/api/projects.ts",
+      "line": 559
+    },
+    {
+      "method": "DELETE",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/shots/${encodeURIComponent(shotId)}`",
+      "file": "src/services/api/projects.ts",
+      "line": 563
+    },
+    {
+      "method": "PUT",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/units/${encodeURIComponent(unitId)}/shots`",
+      "file": "src/services/api/projects.ts",
+      "line": 574
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/shots/${encodeURIComponent(shotId)}/assets`",
+      "file": "src/services/api/projects.ts",
+      "line": 583
+    },
+    {
+      "method": "DELETE",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/shots/${encodeURIComponent(shotId)}/assets/${encodeURIComponent(referenceId)}`",
+      "file": "src/services/api/projects.ts",
+      "line": 587
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/shots/${encodeURIComponent(shotId)}/revisions`",
+      "file": "src/services/api/projects.ts",
+      "line": 591
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/asset-candidates`",
+      "file": "src/services/api/projects.ts",
+      "line": 600
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/chapter-apply-receipts`",
+      "file": "src/services/api/projects.ts",
+      "line": 615
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/asset-candidates/${encodeURIComponent(candidateId)}/confirm`",
+      "file": "src/services/api/projects.ts",
+      "line": 621
+    },
+    {
+      "method": "PATCH",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/workflow-steps/${encodeURIComponent(stepId)}`",
+      "file": "src/services/api/projects.ts",
+      "line": 625
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/workflow-steps/${encodeURIComponent(stepId)}/task-output`",
+      "file": "src/services/api/projects.ts",
+      "line": 629
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/canvases/${encodeURIComponent(canvasId)}/production-context`",
+      "file": "src/services/api/projects.ts",
+      "line": 647
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/projects/${encodeURIComponent(projectId)}/canvases/${encodeURIComponent(canvasId)}/production-context`",
+      "file": "src/services/api/projects.ts",
+      "line": 651
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/resources/${encodeURIComponent(id)}/playback`",
+      "file": "src/services/api/resources.ts",
+      "line": 37
+    },
+    {
+      "method": "DELETE",
+      "endpoint": "/resources/playback-cache",
+      "file": "src/services/api/resources.ts",
+      "line": 42
+    },
+    {
+      "method": "GET",
+      "endpoint": "/resources/storage-usage",
+      "file": "src/services/api/resources.ts",
+      "line": 89
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/resources/${encodeURIComponent(id)}/ark-private-asset`",
+      "file": "src/services/api/resources.ts",
+      "line": 94
+    },
+    {
+      "method": "POST",
+      "endpoint": "/resources",
+      "file": "src/services/api/resources.ts",
+      "line": 170
+    },
+    {
+      "method": "POST",
+      "endpoint": "/resources/uploads",
+      "file": "src/services/api/resources.ts",
+      "line": 204
+    },
+    {
+      "method": "PUT",
+      "endpoint": "`/resources/uploads/${encodeURIComponent(session.uploadId)}/chunks/${index}`",
+      "file": "src/services/api/resources.ts",
+      "line": 217
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/resources/uploads/${encodeURIComponent(session.uploadId)}/complete`",
+      "file": "src/services/api/resources.ts",
+      "line": 224
+    },
+    {
+      "method": "POST",
+      "endpoint": "/resources/import",
+      "file": "src/services/api/resources.ts",
+      "line": 260
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/resources/${encodeURIComponent(id)}`",
+      "file": "src/services/api/resources.ts",
+      "line": 295
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/resources/${encodeURIComponent(id)}`",
+      "file": "src/services/api/resources.ts",
+      "line": 319
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/resources/${encodeURIComponent(id)}/oss-url`",
+      "file": "src/services/api/resources.ts",
+      "line": 332
+    },
+    {
+      "method": "RAW",
+      "endpoint": "{\n        ...config,\n        method: \"get\",\n        url: `/resources/${encodeURIComponent(id)}/file?variant=playback&proxy=1`,\n        responseType: \"blob\",\n        timeout: 0,\n    }",
+      "file": "src/services/api/resources.ts",
+      "line": 375
+    },
+    {
+      "method": "RAW",
+      "endpoint": "{\n            ...config,\n            method: \"get\",\n            url: `/resources/${encodeURIComponent(id)}/file?proxy=1`,\n            responseType: \"blob\",\n            // Images may be much larger than JSON responses; keep the shared\n            // authenticated media path independent of the 4 s JSON timeout.\n            timeout: 0,\n        }",
+      "file": "src/services/api/resources.ts",
+      "line": 404
+    },
+    {
+      "method": "GET",
+      "endpoint": "`${root}/search`",
+      "file": "src/services/api/skill-market.ts",
+      "line": 17
+    },
+    {
+      "method": "GET",
+      "endpoint": "`${root}/releases/${id(skillId)}/${id(releaseId)}`",
+      "file": "src/services/api/skill-market.ts",
+      "line": 18
+    },
+    {
+      "method": "GET",
+      "endpoint": "`${root}/releases/${id(skillId)}/${id(releaseId)}/file`",
+      "file": "src/services/api/skill-market.ts",
+      "line": 19
+    },
+    {
+      "method": "POST",
+      "endpoint": "`${root}/install`",
+      "file": "src/services/api/skill-market.ts",
+      "line": 20
+    },
+    {
+      "method": "GET",
+      "endpoint": "`${root}/versions/${id(skillId)}`",
+      "file": "src/services/api/skill-market.ts",
+      "line": 21
+    },
+    {
+      "method": "POST",
+      "endpoint": "`${root}/rollback`",
+      "file": "src/services/api/skill-market.ts",
+      "line": 22
+    },
+    {
+      "method": "POST",
+      "endpoint": "`${root}/fork`",
+      "file": "src/services/api/skill-market.ts",
+      "line": 23
+    },
+    {
+      "method": "GET",
+      "endpoint": "`${root}/authorization`",
+      "file": "src/services/api/skill-market.ts",
+      "line": 24
+    },
+    {
+      "method": "POST",
+      "endpoint": "`${root}/authorization/start`",
+      "file": "src/services/api/skill-market.ts",
+      "line": 25
+    },
+    {
+      "method": "DELETE",
+      "endpoint": "`${root}/authorization`",
+      "file": "src/services/api/skill-market.ts",
+      "line": 26
+    },
+    {
+      "method": "GET",
+      "endpoint": "`${root}/publish-plans`",
+      "file": "src/services/api/skill-market.ts",
+      "line": 27
+    },
+    {
+      "method": "POST",
+      "endpoint": "`${root}/publish-plans`",
+      "file": "src/services/api/skill-market.ts",
+      "line": 28
+    },
+    {
+      "method": "POST",
+      "endpoint": "`${root}/publish-plans/${id(planId)}/refresh`",
+      "file": "src/services/api/skill-market.ts",
+      "line": 29
+    },
+    {
+      "method": "POST",
+      "endpoint": "`${root}/publish-plans/${id(plan.planId)}/upload`",
+      "file": "src/services/api/skill-market.ts",
+      "line": 31
+    },
+    {
+      "method": "POST",
+      "endpoint": "`${root}/publish-plans/${id(plan.planId)}/submit`",
+      "file": "src/services/api/skill-market.ts",
+      "line": 34
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/skills?${params.toString()}`",
+      "file": "src/services/api/skills.ts",
+      "line": 140
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/skills/${encodeURIComponent(id)}`",
+      "file": "src/services/api/skills.ts",
+      "line": 144
+    },
+    {
+      "method": "GET",
+      "endpoint": "/skills/added",
+      "file": "src/services/api/skills.ts",
+      "line": 168
+    },
+    {
+      "method": "POST",
+      "endpoint": "/skills",
+      "file": "src/services/api/skills.ts",
+      "line": 182
+    },
+    {
+      "method": "POST",
+      "endpoint": "/skills/install",
+      "file": "src/services/api/skills.ts",
+      "line": 193
+    },
+    {
+      "method": "POST",
+      "endpoint": "/skills/install/github",
+      "file": "src/services/api/skills.ts",
+      "line": 197
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/skills/${encodeURIComponent(id)}/files`",
+      "file": "src/services/api/skills.ts",
+      "line": 201
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/skills/${encodeURIComponent(id)}/file`",
+      "file": "src/services/api/skills.ts",
+      "line": 205
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/skills/${encodeURIComponent(id)}/bundle`",
+      "file": "src/services/api/skills.ts",
+      "line": 209
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/skills/${encodeURIComponent(id)}/search`",
+      "file": "src/services/api/skills.ts",
+      "line": 213
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/skills/${encodeURIComponent(id)}/sync`",
+      "file": "src/services/api/skills.ts",
+      "line": 217
+    },
+    {
+      "method": "PUT",
+      "endpoint": "`/skills/${encodeURIComponent(id)}`",
+      "file": "src/services/api/skills.ts",
+      "line": 226
+    },
+    {
+      "method": "DELETE",
+      "endpoint": "`/skills/${encodeURIComponent(id)}`",
+      "file": "src/services/api/skills.ts",
+      "line": 230
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/skills/${encodeURIComponent(id)}/add`",
+      "file": "src/services/api/skills.ts",
+      "line": 234
+    },
+    {
+      "method": "DELETE",
+      "endpoint": "`/skills/${encodeURIComponent(id)}/add`",
+      "file": "src/services/api/skills.ts",
+      "line": 238
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/skills/${encodeURIComponent(id)}/like`",
+      "file": "src/services/api/skills.ts",
+      "line": 242
+    },
+    {
+      "method": "DELETE",
+      "endpoint": "`/skills/${encodeURIComponent(id)}/like`",
+      "file": "src/services/api/skills.ts",
+      "line": 246
+    },
+    {
+      "method": "GET",
+      "endpoint": "/style-profiles",
+      "file": "src/services/api/style-profiles.ts",
+      "line": 19
+    },
+    {
+      "method": "POST",
+      "endpoint": "/style-profiles",
+      "file": "src/services/api/style-profiles.ts",
+      "line": 23
+    },
+    {
+      "method": "PATCH",
+      "endpoint": "`/style-profiles/${encodeURIComponent(id)}`",
+      "file": "src/services/api/style-profiles.ts",
+      "line": 27
+    },
+    {
+      "method": "PATCH",
+      "endpoint": "`/style-profiles/${encodeURIComponent(id)}/favorite`",
+      "file": "src/services/api/style-profiles.ts",
+      "line": 31
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/style-profiles/${encodeURIComponent(id)}/use`",
+      "file": "src/services/api/style-profiles.ts",
+      "line": 35
+    },
+    {
+      "method": "DELETE",
+      "endpoint": "`/style-profiles/${encodeURIComponent(id)}`",
+      "file": "src/services/api/style-profiles.ts",
+      "line": 39
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/canvas-projects/${encodeURIComponent(projectId)}/import/tapnow`",
+      "file": "src/services/api/tapnow.ts",
+      "line": 56
+    },
+    {
+      "method": "POST",
+      "endpoint": "/tasks",
+      "file": "src/services/api/task-center.ts",
+      "line": 138
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/tasks/by-operation/${encodeURIComponent(operationId)}`",
+      "file": "src/services/api/task-center.ts",
+      "line": 156
+    },
+    {
+      "method": "GET",
+      "endpoint": "/tasks",
+      "file": "src/services/api/task-center.ts",
+      "line": 172
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/tasks/${encodeURIComponent(id)}`",
+      "file": "src/services/api/task-center.ts",
+      "line": 229
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/tasks/${encodeURIComponent(id)}/text-deltas`",
+      "file": "src/services/api/task-center.ts",
+      "line": 318
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/tasks/${encodeURIComponent(id)}/text-replay-complete`",
+      "file": "src/services/api/task-center.ts",
+      "line": 322
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/tasks/${encodeURIComponent(id)}/text-deltas`",
+      "file": "src/services/api/task-center.ts",
+      "line": 326
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/tasks/${encodeURIComponent(id)}/retry`",
+      "file": "src/services/api/task-center.ts",
+      "line": 330
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/tasks/${encodeURIComponent(id)}/recover`",
+      "file": "src/services/api/task-center.ts",
+      "line": 334
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/tasks/${encodeURIComponent(id)}/cancel`",
+      "file": "src/services/api/task-center.ts",
+      "line": 338
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/tasks/${encodeURIComponent(id)}`",
+      "file": "src/services/api/task-center.ts",
+      "line": 345
+    },
+    {
+      "method": "DELETE",
+      "endpoint": "`/tasks/${encodeURIComponent(id)}`",
+      "file": "src/services/api/task-center.ts",
+      "line": 349
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/tasks/${encodeURIComponent(id)}/logs`",
+      "file": "src/services/api/task-center.ts",
+      "line": 353
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "`${base}${path}${cursor}`",
+      "file": "src/services/api/task-center.ts",
+      "line": 496
+    },
+    {
+      "method": "POST",
+      "endpoint": "/beefapi/connection/models",
+      "file": "src/services/api/timeline-tasks.ts",
+      "line": 26
+    },
+    {
+      "method": "POST",
+      "endpoint": "/timeline/transcriptions",
+      "file": "src/services/api/timeline-tasks.ts",
+      "line": 60
+    },
+    {
+      "method": "POST",
+      "endpoint": "/timeline/renders",
+      "file": "src/services/api/timeline-tasks.ts",
+      "line": 87
+    },
+    {
+      "method": "POST",
+      "endpoint": "/timeline/render-plan",
+      "file": "src/services/api/timeline-tasks.ts",
+      "line": 101
+    },
+    {
+      "method": "GET",
+      "endpoint": "/assets",
+      "file": "src/services/api/workspace-assets.ts",
+      "line": 37
+    },
+    {
+      "method": "GET",
+      "endpoint": "/assets",
+      "file": "src/services/api/workspace-assets.ts",
+      "line": 58
+    },
+    {
+      "method": "POST",
+      "endpoint": "/assets/batch",
+      "file": "src/services/api/workspace-assets.ts",
+      "line": 63
+    },
+    {
+      "method": "GET",
+      "endpoint": "/canvas-projects",
+      "file": "src/services/api/workspace-data.ts",
+      "line": 19
+    },
+    {
+      "method": "GET",
+      "endpoint": "/asset-folders",
+      "file": "src/services/api/workspace-data.ts",
+      "line": 26
+    },
+    {
+      "method": "POST",
+      "endpoint": "/asset-folders",
+      "file": "src/services/api/workspace-data.ts",
+      "line": 30
+    },
+    {
+      "method": "PATCH",
+      "endpoint": "`/asset-folders/${encodeURIComponent(id)}`",
+      "file": "src/services/api/workspace-data.ts",
+      "line": 34
+    },
+    {
+      "method": "DELETE",
+      "endpoint": "`/asset-folders/${encodeURIComponent(id)}`",
+      "file": "src/services/api/workspace-data.ts",
+      "line": 38
+    },
+    {
+      "method": "GET",
+      "endpoint": "/canvas-folders",
+      "file": "src/services/api/workspace-data.ts",
+      "line": 73
+    },
+    {
+      "method": "PUT",
+      "endpoint": "`/canvas-folders/${encodeURIComponent(id)}`",
+      "file": "src/services/api/workspace-data.ts",
+      "line": 77
+    },
+    {
+      "method": "DELETE",
+      "endpoint": "`/canvas-folders/${encodeURIComponent(id)}`",
+      "file": "src/services/api/workspace-data.ts",
+      "line": 81
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/canvas-projects/${encodeURIComponent(canvasId)}/drawings/${encodeURIComponent(drawingId)}`",
+      "file": "src/services/api/workspace-data.ts",
+      "line": 85
+    },
+    {
+      "method": "PUT",
+      "endpoint": "`/canvas-projects/${encodeURIComponent(canvasId)}/drawings/${encodeURIComponent(drawingId)}`",
+      "file": "src/services/api/workspace-data.ts",
+      "line": 98
+    },
+    {
+      "method": "DELETE",
+      "endpoint": "`/canvas-projects/${encodeURIComponent(canvasId)}/drawings/${encodeURIComponent(drawingId)}`",
+      "file": "src/services/api/workspace-data.ts",
+      "line": 102
+    },
+    {
+      "method": "PATCH",
+      "endpoint": "/assets/folder",
+      "file": "src/services/api/workspace-data.ts",
+      "line": 106
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/assets/${encodeURIComponent(id)}`",
+      "file": "src/services/api/workspace-data.ts",
+      "line": 110
+    },
+    {
+      "method": "PUT",
+      "endpoint": "`/assets/${encodeURIComponent(id)}`",
+      "file": "src/services/api/workspace-data.ts",
+      "line": 125
+    },
+    {
+      "method": "DELETE",
+      "endpoint": "`/assets/${encodeURIComponent(id)}`",
+      "file": "src/services/api/workspace-data.ts",
+      "line": 129
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/canvas-projects/${encodeURIComponent(id)}/history`",
+      "file": "src/services/api/workspace-data.ts",
+      "line": 146
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/canvas-projects/${encodeURIComponent(id)}/history/${encodeURIComponent(snapshotId)}`",
+      "file": "src/services/api/workspace-data.ts",
+      "line": 150
+    },
+    {
+      "method": "POST",
+      "endpoint": "`/canvas-projects/${encodeURIComponent(id)}/history/${encodeURIComponent(snapshotId)}/restore`",
+      "file": "src/services/api/workspace-data.ts",
+      "line": 158
+    },
+    {
+      "method": "POST",
+      "endpoint": "/workspace/model-config/capability",
+      "file": "src/services/api/workspace.ts",
+      "line": 22
+    },
+    {
+      "method": "GET",
+      "endpoint": "/workspace/bootstrap",
+      "file": "src/services/api/workspace.ts",
+      "line": 44
+    },
+    {
+      "method": "GET",
+      "endpoint": "/workspace/model-config",
+      "file": "src/services/api/workspace.ts",
+      "line": 48
+    },
+    {
+      "method": "PUT",
+      "endpoint": "/workspace/model-config",
+      "file": "src/services/api/workspace.ts",
+      "line": 59
+    },
+    {
+      "method": "GET",
+      "endpoint": "/canvas-host/reference-storage",
+      "file": "src/services/canvas-host.ts",
+      "line": 43
+    },
+    {
+      "method": "PUT",
+      "endpoint": "/canvas-host/reference-storage",
+      "file": "src/services/canvas-host.ts",
+      "line": 44
+    },
+    {
+      "method": "POST",
+      "endpoint": "/canvas-host/reference-storage/test",
+      "file": "src/services/canvas-host.ts",
+      "line": 45
+    },
+    {
+      "method": "POST",
+      "endpoint": "/canvas-host/reference-uploads",
+      "file": "src/services/canvas-host.ts",
+      "line": 46
+    },
+    {
+      "method": "GET",
+      "endpoint": "/canvas-host/reference-uploads/progress",
+      "file": "src/services/canvas-host.ts",
+      "line": 47
+    },
+    {
+      "method": "GET",
+      "endpoint": "/canvas-host/depth/status",
+      "file": "src/services/canvas-host.ts",
+      "line": 48
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "sourceUrl",
+      "file": "src/services/depth-runtime.ts",
+      "line": 58
+    },
+    {
+      "method": "POST",
+      "endpoint": "/diagnostics/preview",
+      "file": "src/services/diagnostics/diagnostics-api.ts",
+      "line": 46
+    },
+    {
+      "method": "RAW",
+      "endpoint": "{ method: \"post\", url: \"/diagnostics/export\", data: input, responseType: \"blob\" }",
+      "file": "src/services/diagnostics/diagnostics-api.ts",
+      "line": 51
+    },
+    {
+      "method": "POST",
+      "endpoint": "/diagnostics/environment",
+      "file": "src/services/diagnostics/environment-check.ts",
+      "line": 9
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "input",
+      "file": "src/services/image-storage.ts",
+      "line": 51
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "url",
+      "file": "src/services/image-storage.ts",
+      "line": 143
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "url",
+      "file": "src/services/image-storage.ts",
+      "line": 144
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "sourceUrl",
+      "file": "src/services/lineart-runtime.ts",
+      "line": 58
+    },
+    {
+      "method": "PUT",
+      "endpoint": "endpoint",
+      "file": "src/services/local-workspace-repository.ts",
+      "line": 503
+    },
+    {
+      "method": "GET",
+      "endpoint": "/canvas-projects",
+      "file": "src/services/local-workspace-repository.ts",
+      "line": 866
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/canvas-projects/${encodeURIComponent(summary.id)}`",
+      "file": "src/services/local-workspace-repository.ts",
+      "line": 872
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/canvas-projects/${encodeURIComponent(id)}`",
+      "file": "src/services/local-workspace-repository.ts",
+      "line": 912
+    },
+    {
+      "method": "GET",
+      "endpoint": "`/canvas-projects/${encodeURIComponent(id)}`",
+      "file": "src/services/local-workspace-repository.ts",
+      "line": 1037
+    },
+    {
+      "method": "DELETE",
+      "endpoint": "`/canvas-projects/${encodeURIComponent(id)}`",
+      "file": "src/services/local-workspace-repository.ts",
+      "line": 1137
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "sourceUrl",
+      "file": "src/services/pose-runtime.ts",
+      "line": 62
+    },
+    {
+      "method": "PUT",
+      "endpoint": "`/assets/${encodeURIComponent(id)}`",
+      "file": "src/services/project-asset-sync.ts",
+      "line": 57
+    },
+    {
+      "method": "PUT",
+      "endpoint": "`/assets/${encodeURIComponent(asset.id)}`",
+      "file": "src/services/project-asset-sync.ts",
+      "line": 178
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "result.dataUrl",
+      "file": "src/services/project-asset-sync.ts",
+      "line": 311
+    },
+    {
+      "method": "FETCH",
+      "endpoint": "dataUrl",
+      "file": "src/services/project-asset-sync.ts",
+      "line": 338
+    }
+  ]
+}
