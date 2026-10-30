@@ -101,7 +101,7 @@ export function ModelServiceEditor({ initial, onClose, onSave }: { initial?: Mod
         const existing = new Set(draft.modelProfiles?.map((item) => item.model));
         setDraft((current) => ({ ...current, modelProfiles: profiles.map((profile) => {
             const metadata = enriched.find((item) => item.model === profile.model);
-            return existing.has(profile.model) || !metadata?.capabilityConfig ? profile : { ...profile, capabilityConfig: metadata.capabilityConfig };
+            return presetCatalog || existing.has(profile.model) || !metadata?.capabilityConfig ? profile : { ...profile, capabilityConfig: metadata.capabilityConfig };
         }) }));
         setCatalog(next);
         setCatalogRead(true);
