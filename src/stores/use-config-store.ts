@@ -17,7 +17,7 @@ import { seedancePortraitLabel, seedancePortraitModel, type VideoPriceQuote } fr
 export type ApiCallFormat = "openai" | "gemini" | "claude";
 export type ChannelInterfaceType = ModelProtocol;
 export type ChannelHeader = { name: string; value: string };
-export type ReferenceMediaTransport = Partial<Record<"image" | "video" | "audio", "auto" | "inline" | "url" | "link">>;
+export type ReferenceMediaTransport = Partial<Record<"image" | "video" | "audio", "auto" | "inline" | "url" | "link" | "ark-files">>;
 export type RunningHubCapability = "image" | "video" | "audio";
 export type RunningHubWorkflowKind = "workflow" | "app";
 
@@ -350,6 +350,7 @@ export const PUBLIC_MODEL_CATALOG_ID = "managed";
 
 export type ModelChannel = {
     id: string;
+    provider_id?: "compatible" | "openai" | "gemini" | "ark" | "ark-video";
     name: string;
     publicAlias?: string;
     sortOrder?: number;
@@ -373,6 +374,7 @@ export type ModelChannel = {
     concurrencyLimit?: number;
     modelProfiles?: Array<{
         model: string;
+        provider_model_family?: string;
         displayName?: string;
         description?: string;
         icon?: string;
@@ -988,6 +990,7 @@ export function createModelChannel(channel?: Partial<ModelChannel>): ModelChanne
     const providedBaseUrl = channel?.baseUrl?.trim();
     return {
         id: channel?.id?.trim() || nanoid(),
+        provider_id: channel?.provider_id,
         name: channel?.name?.trim() || "新渠道",
         sortOrder: channel?.sortOrder ?? 0,
         baseUrl: providedBaseUrl || (interfaceType ? defaultBaseUrlForChannelInterface(interfaceType) : defaultBaseUrlForApiFormat(apiFormat)),
@@ -1099,7 +1102,7 @@ export function logicalModelIDForConfig(config: AiConfig) {
 }
 
 export function channelConnectionSignature(channel: ModelChannel) {
-    return [channel.baseUrl.trim(), channel.referenceAssetOrigin?.trim() || "", channel.apiKey.trim(), channel.secretKey?.trim() || "", channel.apiFormat, channel.interfaceType || "auto", JSON.stringify(channel.headers || [])].join("\n");
+    return [channel.provider_id || "", channel.baseUrl.trim(), channel.referenceAssetOrigin?.trim() || "", channel.apiKey.trim(), channel.secretKey?.trim() || "", channel.apiFormat, channel.interfaceType || "auto", JSON.stringify(channel.headers || [])].join("\n");
 }
 
 export function resolveModelRequestConfig(config: AiConfig, value: string) {

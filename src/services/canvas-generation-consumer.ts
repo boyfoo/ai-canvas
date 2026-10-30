@@ -1,4 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
+import { isBrowserGenerationTask } from "@/services/browser-generation-tasks";
+import { bindBrowserGenerationResult } from "@/services/browser-generation-result";
 import { CanvasGenerationDurableAckError, CanvasGenerationMaterializationError, CanvasGenerationOutputMissingError } from "./canvas-generation-errors";
 export { CanvasGenerationDurableAckError, CanvasGenerationMaterializationError, CanvasGenerationOutputMissingError, CanvasGenerationTargetSaveError } from "./canvas-generation-errors";
 
@@ -216,6 +218,7 @@ export async function bindBackendCanvasGenerationResult(input: {
     onPhaseChange?: (phase: "fetching" | "saving") => void;
 }) {
     if (input.task.status !== "succeeded") throw new Error("只有成功的任务才能绑定到画布");
+    if (isBrowserGenerationTask(input.task.id)) return bindBrowserGenerationResult(input);
     const runtime = input.runtime ?? {};
     const capturedCanvasId = input.canvasId;
     const outputIndex = input.outputIndex ?? 0;

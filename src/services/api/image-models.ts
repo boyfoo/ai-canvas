@@ -5,6 +5,7 @@ import { geminiApiUrl, geminiHeaders } from "@/services/api/image-transport";
 
 
 import { buildApiUrl, type AiConfig, type ModelChannel } from "@/stores/use-config-store";
+import { arkVideoModelCatalog } from "@/lib/ark-video-models";
 
 const defaultGeminiConfig: Pick<AiConfig, "baseUrl" | "apiKey" | "apiFormat" | "model" | "systemPrompt"> = {
     baseUrl: "https://generativelanguage.googleapis.com",
@@ -73,6 +74,10 @@ export async function fetchImageModels(config: Pick<AiConfig, "baseUrl" | "apiKe
 export type ChannelModelFetchResult = { models: string[]; catalog: ChannelModelCatalogItem[] };
 
 export async function fetchChannelModels(channel: ModelChannel, signal?: AbortSignal): Promise<ChannelModelFetchResult> {
+    if (channel.provider_id === "ark-video") {
+        const catalog = arkVideoModelCatalog();
+        return { models: catalog.map(item => item.id), catalog };
+    }
     if (channel.apiFormat === "gemini") {
         const payload = await createChannelTransport(channel, "image").get<GeminiModelPayload>(geminiApiUrl({ ...defaultGeminiConfig, ...channel }), { signal, headers: geminiHeaders(channel) });
         validateGeminiPayload(payload);

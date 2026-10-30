@@ -74,13 +74,13 @@ export async function normalizeChannelFailure(error: unknown): Promise<never> {
     throw new ChannelResponseError(payload, error.response?.status);
 }
 
-async function channelResponse<T>(request: Promise<{ data: T; status: number }>, acceptEventStream = false): Promise<T> {
+async function channelResponse<T>(request: Promise<{ data: T; status: number }>, acceptEventStream = false, validatePayload = true): Promise<T> {
     try {
         const response = await request;
         if (response.data instanceof Blob) {
             if (!(acceptEventStream && response.data.type.startsWith("text/event-stream"))) await assertChannelBlob(response.data);
         }
-        else assertChannelPayload(response.data, response.status);
+        else if (validatePayload) assertChannelPayload(response.data, response.status);
         return response.data;
     } catch (error) {
         return normalizeChannelFailure(error);
@@ -95,11 +95,15 @@ export type ChannelTransportConfig = Parameters<typeof channelRequest>[0] & {
 
 export type ChannelCallOptions = {
     signal?: AbortSignal;
+    timeout_ms?: number;
+    on_upload_progress?: (loaded: number, total: number) => void;
+    validate_payload?: boolean;
     headers?: Record<string, string>;
     acceptEventStream?: boolean;
 };
 
 export type ChannelTransport = {
+    delete: (upstreamUrl: string, options?: ChannelCallOptions) => Promise<void>;
     postJson: <T>(upstreamUrl: string, body: unknown, options?: ChannelCallOptions) => Promise<T>;
     postBlob: (upstreamUrl: string, body: unknown, options?: ChannelCallOptions) => Promise<Blob>;
     postForm: <T>(upstreamUrl: string, body: FormData, options?: ChannelCallOptions) => Promise<T>;
@@ -119,7 +123,7 @@ export function createChannelTransport(config: ChannelTransportConfig, scene?: C
         ...extra,
     });
 
-    const send = async <T>(method: "get" | "post", upstreamUrl: string, body: unknown, options?: ChannelCallOptions & { contentType?: string; responseType?: "blob" }) => {
+    const send = async <T>(method: "get" | "post" | "delete", upstreamUrl: string, body: unknown, options?: ChannelCallOptions & { contentType?: string; responseType?: "blob" }) => {
         const request = channelRequest(config, upstreamUrl, sceneHeaders(options?.contentType, options?.headers));
         return channelResponse(
             axios.request<T>({
@@ -129,12 +133,15 @@ export function createChannelTransport(config: ChannelTransportConfig, scene?: C
                 headers: request.headers,
                 withCredentials: request.credentials === "include",
                 signal: options?.signal,
+                timeout: options?.timeout_ms,
+                onUploadProgress: options?.on_upload_progress ? event => options.on_upload_progress!(event.loaded, event.total || 0) : undefined,
                 responseType: options?.responseType,
-            }), options?.acceptEventStream,
+            }), options?.acceptEventStream, options?.validate_payload !== false,
         );
     };
 
     return {
+        delete: (upstreamUrl, options) => send("delete", upstreamUrl, undefined, options),
         postJson: (upstreamUrl, body, options) => send("post", upstreamUrl, body, { ...options, contentType: "application/json" }),
         postBlob: (upstreamUrl, body, options) => send("post", upstreamUrl, body, { ...options, contentType: "application/json", responseType: "blob" }),
         postForm: (upstreamUrl, body, options) => send("post", upstreamUrl, body, options),

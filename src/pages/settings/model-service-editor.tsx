@@ -1,3 +1,4 @@
+import { ARK_VIDEO_MODELS, arkVideoModelProfile } from "@/lib/ark-video-models";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Alert, Button, Checkbox, Form, Input, Segmented, Select, Spin } from "antd";
 import { ArrowLeft, Check, ChevronDown, KeyRound, Search, Settings2, ShieldCheck } from "lucide-react";
@@ -47,6 +48,9 @@ export function ModelServiceEditor({ initial, onClose, onSave }: { initial?: Mod
     // 凭证字段名跟着模型实际使用的协议走：AK/SK 签名和 Agent Plan 专属 Key
     // 都不能沿用「API Key」这一个名字。
     const credential = serviceCredentialGuide(draft, protocols);
+    const presetCatalog = draft.provider_id === "ark-video";
+    const [manualFamily, setManualFamily] = useState<string>();
+    const catalogAction = presetCatalog ? "选择预置模型" : "读取模型";
 
     useEffect(() => {
         alive.current = true;
@@ -73,8 +77,9 @@ export function ModelServiceEditor({ initial, onClose, onSave }: { initial?: Mod
     const choosePreset = (id: ModelServicePresetId) => {
         const preset = MODEL_SERVICE_PRESETS.find((item) => item.id === id)!;
         setPresetId(id);
-        setDraft({ ...createModelChannel({ id: draft.id, apiFormat: preset.apiFormat }), name: id === "compatible" ? "" : preset.name, baseUrl: preset.baseUrl });
+        setDraft({ ...createModelChannel({ id: draft.id, provider_id: id, apiFormat: preset.apiFormat }), name: id === "compatible" ? "" : preset.name, baseUrl: preset.baseUrl });
         setCatalog([]);
+        setManualFamily(undefined);
         setCatalogRead(false);
         setAdvanced(false);
         setError("");
@@ -100,7 +105,7 @@ export function ModelServiceEditor({ initial, onClose, onSave }: { initial?: Mod
         }) }));
         setCatalog(next);
         setCatalogRead(true);
-        setNotice(result.models.length ? `已读取 ${result.models.length} 个模型，勾选你要使用的模型；列表里没有的模型可以在下面直接填 ID 添加。` : "服务没有返回模型，在下面填写模型 ID 再点「添加」。");
+        setNotice(presetCatalog ? "以下为预置模型，实际可用性取决于账号开通情况；也可填写 Model ID 或 Endpoint ID 并选择模型系列。" : result.models.length ? `已读取 ${result.models.length} 个模型，勾选你要使用的模型；列表里没有的模型可以在下面直接填 ID 添加。` : "服务没有返回模型，在下面填写模型 ID 再点「添加」。");
         setStep(1);
     };
     const fetchModels = async () => {
@@ -138,14 +143,15 @@ export function ModelServiceEditor({ initial, onClose, onSave }: { initial?: Mod
     const addManual = () => {
         const id = manualName.trim();
         if (!id) return;
-        if (!manualCapability) { setError("请先选择模型类型，再点「添加」"); return; }
+        if (!presetCatalog && !manualCapability) { setError("请先选择模型类型，再点「添加」"); return; }
         if (draft.models.includes(id)) { setError("这个模型已在列表中"); return; }
-        const profile = serviceModelProfile(draft, { id }, protocols, manualCapability);
+        if (presetCatalog && !manualFamily) { setError("请选择自定义模型对应的模型系列"); return; }
+        const profile = presetCatalog ? arkVideoModelProfile(id, manualFamily) : serviceModelProfile(draft, { id }, protocols, manualCapability);
         if (!profile.protocol) {
             setNotice("请在高级模型设置中，为这个模型选择服务商要求的请求协议。");
             setEditingCapabilities(true);
         }
-        setCatalog((current) => current.some((item) => item.id === id) ? current : [...current, { id, modelType: manualCapability }]);
+        setCatalog((current) => current.some((item) => item.id === id) ? current : [...current, { id, modelType: presetCatalog ? "video" : manualCapability }]);
         setDraft((current) => ({ ...current, models: [...current.models, id], modelProfiles: [...(current.modelProfiles || []).filter((p) => p.model !== id), profile] }));
         setManualName("");
         setManualCapability(undefined);
@@ -155,6 +161,7 @@ export function ModelServiceEditor({ initial, onClose, onSave }: { initial?: Mod
         if (!validateConnection()) { setStep(0); return; }
         if (!draft.models.length) { setError("请至少选择或添加一个模型"); return; }
         const profiles = isTopazUpscaleChannel(draft) ? draft.modelProfiles || [] : draft.models.map((id) => serviceModelProfile(draft, catalog.find((item) => item.id === id) || { id }, protocols));
+        if (presetCatalog && profiles.some(profile => profile.capability !== "video" || profile.protocol !== "volcengine-ark-video")) { setError("火山方舟(视频版)仅支持方舟原生视频协议"); return; }
         const missing = profiles.find((profile) => !profile.protocol);
         if (missing) { setError(`${missing.model} 还需要选择请求协议，请打开高级模型设置`); setEditingCapabilities(true); return; }
         // 没单独配置协议的模型会在上面补成预设协议，所以凭证要按真正提交的 profiles 再查一次，
@@ -211,16 +218,17 @@ export function ModelServiceEditor({ initial, onClose, onSave }: { initial?: Mod
                     <Form.Item label={credential.apiKeyLabel} help={credential.apiKeyHelp}><Input.Password prefix={<KeyRound size={15} />} aria-label={credential.apiKeyLabel} autoComplete="new-password" placeholder={credential.apiKeyPlaceholder} value={draft.apiKey} onChange={(event) => patch({ apiKey: event.target.value })} /></Form.Item>
                     <Form.Item label="服务地址"><Input aria-label="服务地址" inputMode="url" placeholder="https://api.example.com/v1" value={draft.baseUrl} onChange={(event) => patch({ baseUrl: event.target.value })} /></Form.Item>
                     {modelCatalogRequestURL(draft) && <div className="model-service-url"><span>模型目录地址</span><code>{modelCatalogRequestURL(draft).split("/").map((part, index) => <Fragment key={index}>{index > 0 && <>/<wbr /></>}{part}</Fragment>)}</code></div>}
+                    {presetCatalog && <Alert type="info" showIcon title="使用预置视频模型" description="无需读取通用模型目录。选择预置模型，或手动填写 Model ID / Endpoint ID 并指定模型系列；生成和参考视频上传由浏览器直接访问方舟。" />}
                     <button type="button" className="model-service-advanced" aria-expanded={advanced} onClick={() => setAdvanced(!advanced)}><Settings2 size={15} />高级设置<ChevronDown size={14} /></button>
                     {advanced && <div className="model-service-advanced-fields">
                         <Form.Item label="素材服务地址（可选）" help="公网素材域名使用 HTTPS。本机、局域网或 CGNAT 可填写 HTTP，并可带端口。留空时只接受与 API 同主机的素材。"><Input aria-label="素材服务地址" inputMode="url" placeholder="https://assets.example.com" value={draft.referenceAssetOrigin || ""} onChange={(event) => patch({ referenceAssetOrigin: event.target.value })} /></Form.Item>
-                        <Form.Item label="目录接口格式"><Select aria-label="目录接口格式" value={draft.apiFormat} options={[{ value: "openai", label: "OpenAI 兼容" }, { value: "gemini", label: "Gemini 原生" }]} onChange={(apiFormat) => patch({ apiFormat })} /></Form.Item>
+                        {!presetCatalog && <Form.Item label="目录接口格式"><Select aria-label="目录接口格式" value={draft.apiFormat} options={[{ value: "openai", label: "OpenAI 兼容" }, { value: "gemini", label: "Gemini 原生" }]} onChange={(apiFormat) => patch({ apiFormat })} /></Form.Item>}
                         <Form.Item label={credential.secretKeyRequired ? `${credential.secretKeyLabel} · 必填` : "Secret Key（按需填写）"} help={credential.secretKeyHelp}><Input.Password aria-label={credential.secretKeyLabel} autoComplete="new-password" placeholder={credential.secretKeyRequired ? "粘贴 Secret Key" : ""} value={draft.secretKey} onChange={(event) => patch({ secretKey: event.target.value })} /></Form.Item>
                         <ChannelHeadersEditor value={draft.headers} onChange={(headers) => patch({ headers })} />
                     </div>}
                 </Form>
             </div> : <div className="model-service-models">
-                <div className="model-service-catalog-header"><div><h3>选择你要使用的模型</h3><p>{draft.name || "我的模型服务"} · {catalogRead ? "目录已读取" : "支持手动添加模型"}</p></div><Button icon={<Search size={14} />} loading={busy} disabled={protocolLoading} onClick={() => void fetchModels()}>读取模型</Button></div>
+                <div className="model-service-catalog-header"><div><h3>选择你要使用的模型</h3><p>{draft.name || "我的模型服务"} · {presetCatalog ? "预置视频模型" : catalogRead ? "目录已读取" : "支持手动添加模型"}</p></div><Button icon={<Search size={14} />} loading={busy} disabled={protocolLoading} onClick={() => void fetchModels()}>{catalogAction}</Button></div>
                 <Input aria-label="搜索模型" prefix={<Search size={16} />} placeholder="搜索模型名称" value={query} onChange={(event) => setQuery(event.target.value)} allowClear />
                 <div className="model-service-filter"><Segmented value={filter} onChange={(value) => setFilter(String(value))} options={[{ label: "全部", value: "all" }, ...Object.entries(CAPABILITY_LABELS).map(([value, label]) => ({ value, label }))]} /><span>已选 {draft.models.length} 个</span></div>
                 <div className="model-service-catalog">
@@ -229,9 +237,9 @@ export function ModelServiceEditor({ initial, onClose, onSave }: { initial?: Mod
                         const receipt = currentModelConnectionReceipt(receipts, draft, item.id);
                         const displayName = seedancePortraitLabel(item.id) || item.displayName || item.id;
                         return <label key={item.id} className="model-service-model"><Checkbox disabled={busy} checked={draft.models.includes(item.id)} onChange={(event) => toggleModel(item.id, event.target.checked)} /><span><strong>{displayName}</strong>{displayName !== item.id && <small>{item.id}</small>}</span><span className="model-service-kind">{CAPABILITY_LABELS[profile.capability]}</span><small title={receipt?.detail}>{receipt ? receipt.success ? "测试通过" : "测试失败" : "未测试"}</small></label>;
-                    }) : <div className="model-service-empty"><Search size={23} /><strong>{query ? "没有找到匹配的模型" : "添加你的第一个模型"}</strong><p>{query ? "换个关键词，或在下方手动添加。" : "读取服务商的模型目录，或填写准确的模型 ID。"}</p></div>}
+                    }) : <div className="model-service-empty"><Search size={23} /><strong>{query ? "没有找到匹配的模型" : "添加你的第一个模型"}</strong><p>{query ? "换个关键词，或在下方手动添加。" : presetCatalog ? "选择预置模型，或填写 Model ID / Endpoint ID。" : "读取服务商的模型目录，或填写准确的模型 ID。"}</p></div>}
                 </div>
-                <div className="model-service-manual"><Input aria-label="模型 ID" placeholder="手动输入模型 ID" value={manualName} disabled={busy} onChange={(event) => setManualName(event.target.value)} onPressEnter={addManual} /><Select aria-label="模型类型" placeholder="选择类型" value={manualCapability} disabled={busy} onChange={setManualCapability} options={Object.entries(CAPABILITY_LABELS).map(([value, label]) => ({ value, label }))} /><Button disabled={busy || protocolLoading || !manualName.trim()} onClick={addManual}>添加</Button></div>
+                <div className={`model-service-manual${presetCatalog ? " model-service-manual-video" : ""}`}><Input aria-label="模型 ID" placeholder="手动输入模型 ID" value={manualName} disabled={busy} onChange={(event) => setManualName(event.target.value)} onPressEnter={addManual} />{presetCatalog ? <Select aria-label="模型系列" placeholder="选择模型系列" value={manualFamily} disabled={busy} onChange={setManualFamily} options={ARK_VIDEO_MODELS.map(item => ({ value: item.family, label: item.name }))} /> : <Select aria-label="模型类型" placeholder="选择类型" value={manualCapability} disabled={busy} onChange={setManualCapability} options={Object.entries(CAPABILITY_LABELS).map(([value, label]) => ({ value, label }))} />}<Button disabled={busy || protocolLoading || !manualName.trim()} onClick={addManual}>添加</Button></div>
                 {draft.models.length > 0 && <><button type="button" className="model-service-advanced" aria-expanded={editingCapabilities} onClick={() => setEditingCapabilities(!editingCapabilities)}><Settings2 size={15} />高级模型设置与测试<ChevronDown size={14} /></button>{editingCapabilities && <ChannelModelSettings draft channel={draft} onChange={(modelProfiles) => setDraft((current) => ({ ...current, modelProfiles }))} />}</>}
             </div>}
         </div>
@@ -243,7 +251,7 @@ export function ModelServiceEditor({ initial, onClose, onSave }: { initial?: Mod
         </div>}
         <div className="model-service-footer">{step === 1 && <span>保存后，可在创作页选择这些模型</span>}<div>
             <Button disabled={busy} onClick={() => { if (validateConnection(false)) setDirectTestOpen(true); }}>测试直连</Button>
-            {step === 0 ? <><Button disabled={busy} onClick={() => { if (validateConnection(false)) { setNotice(""); setStep(1); } }}>手动添加模型</Button><Button type="primary" loading={busy} disabled={protocolLoading} onClick={() => void fetchModels()}>读取模型</Button></> : <><Button disabled={busy} icon={<ArrowLeft size={15} />} onClick={() => { setStep(0); setError(""); }}>连接信息</Button><Button type="primary" loading={busy} disabled={!draft.models.length || protocolLoading} icon={<Check size={15} />} onClick={() => void save()}>保存并使用</Button></>}
+            {step === 0 ? <><Button disabled={busy} onClick={() => { if (validateConnection(false)) { setNotice(""); setStep(1); } }}>手动添加模型</Button><Button type="primary" loading={busy} disabled={protocolLoading} onClick={() => void fetchModels()}>{catalogAction}</Button></> : <><Button disabled={busy} icon={<ArrowLeft size={15} />} onClick={() => { setStep(0); setError(""); }}>连接信息</Button><Button type="primary" loading={busy} disabled={!draft.models.length || protocolLoading} icon={<Check size={15} />} onClick={() => void save()}>保存并使用</Button></>}
         </div></div>
     </AppModal>{directTestOpen && <ModelDirectTestModal channel={draft} onClose={() => setDirectTestOpen(false)} />}</>;
 }

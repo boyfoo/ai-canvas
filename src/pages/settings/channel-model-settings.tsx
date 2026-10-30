@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ArkVideoOptionsEditor } from "./ark-video-options-editor";
 import { Alert, App, Button, Popconfirm, Segmented, Tag } from "antd";
 import { ReferenceMediaTransportFields } from "./reference-media-transport-fields";
 import { ChevronRight, FlaskConical, Settings2 } from "lucide-react";
@@ -14,7 +15,7 @@ import { defaultProtocolForCapability, defaultProtocolForModel, inferProtocolCap
 import { signatureCredentialHint } from "@/lib/service-credentials";
 import { fetchPluginProviderCatalog } from "@/services/api/plugin-catalog";
 import { normalizeModelCapabilityDraft } from "@/services/api/workspace";
-import { modelOptionName, type ModelChannel } from "@/stores/use-config-store";
+import { buildApiUrl, modelOptionName, type ModelChannel } from "@/stores/use-config-store";
 import { currentModelConnectionReceipt, useModelConnectionTests } from "@/stores/use-model-connection-tests";
 
 type ModelProfile = NonNullable<ModelChannel["modelProfiles"]>[number];
@@ -178,7 +179,7 @@ export function ChannelModelSettings({ channel, onChange, draft = false }: { cha
                                 <div className="text-xs font-medium">模型能力</div>
                                 <Segmented<ModelCapabilityChoice>
                                     block
-                                    options={[{ label: "文本", value: "text" }, { label: "图片", value: "image" }, { label: "视频", value: "video" }, { label: "音频", value: "audio" }]}
+                                    options={channel.provider_id === "ark-video" ? [{ label: "视频", value: "video" }] : [{ label: "文本", value: "text" }, { label: "图片", value: "image" }, { label: "视频", value: "video" }, { label: "音频", value: "audio" }]}
                                     value={activeCapability}
                                     onChange={(nextCapability) => {
                                         const nextProtocol = availableProtocols.find((item) => item.value === activeProtocol && item.capability === nextCapability && item.enabled !== false)?.value || (nextCapability === "video" ? undefined : defaultProtocolForCapability(nextCapability, availableProtocols));
@@ -191,7 +192,7 @@ export function ChannelModelSettings({ channel, onChange, draft = false }: { cha
                                     }}
                                 />
                             </section>
-                            {channel.scope !== "system" && activeCapability !== "text" && activeProtocol !== "full-video" && <ReferenceMediaTransportFields value={activeModelProfile?.referenceMediaTransport} onChange={(referenceMediaTransport) => updateProfile(activeModel, { referenceMediaTransport })} />}
+                            {channel.scope !== "system" && activeCapability !== "text" && activeProtocol !== "full-video" && <ReferenceMediaTransportFields filesAPI={channel.provider_id === "ark-video"} filesAPIURL={channel.provider_id === "ark-video" ? buildApiUrl(channel.baseUrl, "/files") : undefined} value={activeModelProfile?.referenceMediaTransport} onChange={(referenceMediaTransport) => updateProfile(activeModel, { referenceMediaTransport })} />}
                             <section className="space-y-2">
                                 <div className="text-xs font-medium">请求协议</div>
                                 <ModelProtocolBrowser
@@ -199,7 +200,7 @@ export function ChannelModelSettings({ channel, onChange, draft = false }: { cha
                                     error={protocolError}
                                     capability={activeCapability}
                                     value={activeProtocol}
-                                    protocols={availableProtocols}
+                                    protocols={channel.provider_id === "ark-video" ? availableProtocols.filter(item => item.value === "volcengine-ark-video") : availableProtocols}
                                     onChange={(nextProtocol) => {
                                         updateProfile(activeModel, {
                                             protocol: nextProtocol,
@@ -216,6 +217,7 @@ export function ChannelModelSettings({ channel, onChange, draft = false }: { cha
                         key: "capabilities",
                         label: "能力与参数",
                         children: <div inert={Boolean(testingModel)}>
+                            {channel.provider_id === "ark-video" && activeModelProfile && <ArkVideoOptionsEditor profile={activeModelProfile} onChange={patch => updateProfile(activeModel, patch)} />}
                             {activeCapability === "image" || activeCapability === "video" ? (
                                 <ModelCapabilityEditor
                                     capability={activeCapability}

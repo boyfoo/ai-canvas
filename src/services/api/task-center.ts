@@ -1,4 +1,6 @@
 import { generationErrorMessage } from "@/lib/generation-error";
+import { hasCanvasBackend } from "@/lib/canvas-host-config";
+import { browserTaskLogs, cancelBrowserGenerationTask, deleteBrowserGenerationTask, isBrowserGenerationTask, listBrowserGenerationTasks, queryBrowserGenerationTask } from "@/services/browser-generation-tasks";
 import { GENERATION_RESULT_FETCH_STAGE } from "@/lib/generation-delivery-progress";
 import { ApiError, http, apiBaseURL, type BackendEnvelope, type HttpRequestConfig } from "@/services/api/request";
 import { consumeTaskTextStream, createTaskTextStreamParser, type TaskTextStreamEvent } from "@/services/api/task-text-stream";
@@ -152,6 +154,8 @@ export type GenerationTaskPageRequest = {
 /** A missing receipt never authorizes another paid generation. */
 export async function findGenerationTaskByOperation(operationId: string, projectId: string, signal?: AbortSignal): Promise<GenerationTask | undefined> {
     if (typeof operationId !== "string" || !operationId.trim()) throw new Error("缺少提交标识，无法查询原任务");
+    const browserTask = (await listBrowserGenerationTasks()).find(task => task.clientOperationId === operationId && task.projectId === projectId);
+    if (browserTask || !hasCanvasBackend()) return browserTask;
     try {
         return await http.get<GenerationTask>(`/tasks/by-operation/${encodeURIComponent(operationId)}`, { params: { projectId }, signal });
     } catch (error) {
@@ -198,10 +202,11 @@ export async function listGenerationTasks(limit = 30, options?: { projectId?: st
                     pageSignal,
                 )) ?? [],
         }));
-    const backendTasks = await collectGenerationTaskPages(backendPageReader, baseRequest, boundedLimit, signal);
+    const backendTasks = !hasCanvasBackend() && dependencies === defaultGenerationTaskListDependencies ? [] : await collectGenerationTaskPages(backendPageReader, baseRequest, boundedLimit, signal);
+    const browserTasks = await listBrowserGenerationTasks();
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     backendTasks.forEach(task => publishTaskReferenceProgress(task, observationRequest));
-    return backendTasks
+    return [...backendTasks, ...browserTasks]
         .filter((task) => !options?.projectId || task.projectId === options.projectId)
         .filter((task) => !options?.activeOnly || task.status === "queued" || task.status === "running")
         .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt) || right.id.localeCompare(left.id))
@@ -225,6 +230,7 @@ async function collectGenerationTaskPages<T>(readPage: (request: GenerationTaskP
 }
 
 export function queryGenerationTask(id: string, options?: { signal?: AbortSignal }) {
+    if (isBrowserGenerationTask(id)) return queryBrowserGenerationTask(id, options?.signal);
     const observationRequest = beginTaskReferenceObservation();
     return http.get<GenerationTask>(`/tasks/${encodeURIComponent(id)}`, { signal: options?.signal }).then(task => {
         if (options?.signal?.aborted) throw new DOMException("Aborted", "AbortError");
@@ -327,14 +333,17 @@ export function queryTaskTextReplay(id: string, after = 0) {
 }
 
 export function retryGenerationTask(id: string, options?: { signal?: AbortSignal }) {
+    if (isBrowserGenerationTask(id)) return Promise.reject<GenerationTask>(new Error("请在画布中重新生成，以重新校验素材和参数；未确认的任务请先关联方舟任务 ID"));
     return http.post<GenerationTask>(`/tasks/${encodeURIComponent(id)}/retry`, undefined, options);
 }
 
 export function recoverTask(id: string, options?: { signal?: AbortSignal }) {
+    if (isBrowserGenerationTask(id)) return queryBrowserGenerationTask(id, options?.signal);
     return http.post<GenerationTask>(`/tasks/${encodeURIComponent(id)}/recover`, undefined, options);
 }
 
 export function cancelGenerationTask(id: string) {
+    if (isBrowserGenerationTask(id)) return cancelBrowserGenerationTask(id);
     return http.post<GenerationTask>(`/tasks/${encodeURIComponent(id)}/cancel`).then((task) => {
         window.dispatchEvent(new CustomEvent("canvas:task-cancelled", { detail: { task } }));
         return task;
@@ -342,14 +351,17 @@ export function cancelGenerationTask(id: string) {
 }
 
 export function refreshGenerationTaskStatus(id: string, options?: { signal?: AbortSignal }) {
+    if (isBrowserGenerationTask(id)) return queryBrowserGenerationTask(id, options?.signal);
     return http.get<GenerationTask>(`/tasks/${encodeURIComponent(id)}`, { signal: options?.signal });
 }
 
 export function deleteGenerationTask(id: string) {
+    if (isBrowserGenerationTask(id)) return deleteBrowserGenerationTask(id);
     return http.delete<void>(`/tasks/${encodeURIComponent(id)}`);
 }
 
 export async function listTaskLogs(id: string, options?: { signal?: AbortSignal }) {
+    if (isBrowserGenerationTask(id)) return browserTaskLogs(id);
     const raw = await http.get<Array<{ summary?: unknown; level?: unknown; message?: unknown; payload?: unknown; createdAt?: unknown }>>(`/tasks/${encodeURIComponent(id)}/logs`, { signal: options?.signal });
     return raw.map((log, index) => projectBackendSafeTaskLog(id, log, index));
 }
@@ -408,7 +420,7 @@ export function shouldUseTaskTextEvents(options?: Pick<WaitForGenerationTaskOpti
 }
 
 export async function waitForGenerationTask(id: string, options?: WaitForGenerationTaskOptions) {
-    if (shouldUseTaskTextEvents(options)) return waitForGenerationTaskTextEvents(id, options || {});
+    if (!isBrowserGenerationTask(id) && shouldUseTaskTextEvents(options)) return waitForGenerationTaskTextEvents(id, options || {});
     const startedAt = Date.now();
     const intervalMs = options?.intervalMs || 2000;
     let lastTask = options?.initialTask;
@@ -438,6 +450,7 @@ export async function waitForGenerationTask(id: string, options?: WaitForGenerat
                 await delay(intervalMs, options?.signal);
                 continue;
             }
+            if (isBrowserGenerationTask(id) && task.stage === "submission_unknown") throw Object.assign(new Error(task.error || "提交结果未确认，请关联原方舟任务"), { code: "submission_uncertain", taskOutcome: task.outcome });
             if (task.status === "queued" || task.status === "running") {
                 const progress = task.delivery?.outputs[0];
                 if (progress) {

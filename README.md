@@ -27,6 +27,14 @@ bun run dev
 
 可在「模型设置」的连接卡片或新增连接窗口点击「测试直连」。火山方舟默认用 GET 读取视频任务列表，不创建生成任务；也可更换同一服务下的请求地址、方法和 JSON 请求体。测试会显示可读取的 HTTP 状态和响应摘要；浏览器无法读取响应时，需结合 Console / Network 区分 CORS、网络和 TLS 问题。POST 会真实调用指定接口，生成请求可能产生费用。一次测试只代表该地址和方法，不能证明全部生成接口可用。
 
+新增一级服务商「火山方舟(视频版)」，与 OpenAI、Google Gemini、原「火山方舟」并列。选择后填写 API Key，勾选预置 Seedance 视频模型，或填写 Model ID / Endpoint ID 并明确选择模型系列。预置列表不是账号权限查询；新提供商不请求 `/models`。视频创建、查询、取消及画布结果保存由浏览器执行，不需要业务后端中转。其他服务商的完整生成链路仍按原实现执行。
+
+在模型的「高级模型设置与测试 → 编辑模型使用配置 → 基本信息 → 参考素材传输」中，可以分别选择图片、视频、音频的传输方式：火山方舟 Files API、已有对象存储、手动 HTTPS 链接或直接传入。默认图片和音频直接传入，本地视频上传 Files API。Files 地址由当前服务地址拼接 `/files`，使用该连接的 API Key；它是可选云端存储方式，原对象存储配置继续独立使用。原对象存储仍需配置对应宿主服务，未配置时可使用现有链接填写流程。上传 Files 后查询真实 `download_url` 再提交视频任务，不把 File ID 当作 asset ID。Files 临时文件和链接会过期，原素材及成功取回的生成视频保留在浏览器 IndexedDB。
+
+任务记录使用 `app_state` 中 `infinite-canvas:provider-tasks:user:<scope>:browser-task-*` 保存，不保存每任务密钥；刷新后按上游任务 ID 继续查询。提交结果不确定时不会自动重发，可在任务详情关联方舟控制台中的原任务 ID。关闭页面会暂停浏览器轮询，恢复页面后继续观察。生成及文件上传分别受服务商 CORS、账号权限和计费规则约束。
+
+请求参数依据[视频生成 API](https://console.volcengine.com/ark/region:cn-beijing/docs/create-video-generation-task-api)、[上传文件](https://docs.volcengine.com/docs/ark/upload-files-api?lang=zh)及[文件详情](https://docs.volcengine.com/docs/ark/search-files-api?lang=zh)实现。Seedance 2.5 支持在模型高级参数中设置样片、返回尾帧、输出格式及样片转正式；其余通用视频参数继续在画布调整。
+
 浏览器可选择和拖入本地文件、下载导出文件，并执行已有的浏览器媒体处理；运行 Python、本机命令及不受限制的磁盘目录操作需要另行接入本地工具服务。静态站点地址（协议、主机、端口）不同会使用不同的浏览器存储，迁移站点时应先导出项目。
 
 ```sh

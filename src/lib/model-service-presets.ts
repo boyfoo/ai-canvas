@@ -4,12 +4,14 @@ import { defaultModelCapabilityConfig } from "@/lib/model-capabilities";
 import { inferProtocolCapabilityFromModel, type ModelProtocolDefinition } from "@/lib/model-protocols";
 import { catalogEndpointCapability, type ChannelModelCatalogItem } from "@/lib/channel-model-catalog";
 import { serviceCredentialGuide } from "@/lib/service-credentials";
+import { arkVideoModelProfile } from "@/lib/ark-video-models";
 
 export const MODEL_SERVICE_PRESETS = [
     { id: "compatible", name: "第三方模型服务", subtitle: "OpenAI 兼容 API · 中转服务", icon: "OpenAI", baseUrl: "", apiFormat: "openai" },
     { id: "openai", name: "OpenAI", subtitle: "文本 · 图片（Sora 已停用）", icon: "OpenAI", baseUrl: "https://api.openai.com/v1", apiFormat: "openai" },
     { id: "gemini", name: "Google Gemini", subtitle: "文本 · 图片（Veo 已停用）", icon: "Gemini", baseUrl: "https://generativelanguage.googleapis.com", apiFormat: "gemini" },
     { id: "ark", name: "火山方舟", subtitle: "文本 · 即梦图片 · Seedance 视频", icon: "Volcengine", baseUrl: "https://ark.cn-beijing.volces.com/api/v3", apiFormat: "openai" },
+    { id: "ark-video", name: "火山方舟(视频版)", subtitle: "Seedance 视频 · 浏览器直连", icon: "Volcengine", baseUrl: "https://ark.cn-beijing.volces.com/api/v3", apiFormat: "openai" },
 ] as const;
 export type ModelServicePresetId = typeof MODEL_SERVICE_PRESETS[number]["id"];
 export const CAPABILITY_LABELS: Record<ModelCapability, string> = { text: "文本", image: "图片", video: "视频", audio: "音频" };
@@ -19,6 +21,7 @@ export function isTopazUpscaleChannel(channel: Pick<ModelChannel, "id" | "models
 }
 
 export function servicePresetFor(channel: ModelChannel): ModelServicePresetId {
+    if (channel.provider_id) return channel.provider_id;
     try {
         const host = new URL(channel.baseUrl).hostname;
         if (host === "api.openai.com") return "openai";
@@ -31,6 +34,7 @@ export function servicePresetFor(channel: ModelChannel): ModelServicePresetId {
 // Endpoint metadata is a hint, only resolve to protocols the host actually offers.
 export function serviceModelProfile(channel: ModelChannel, item: ChannelModelCatalogItem, protocols: ModelProtocolDefinition[], explicitCapability?: ModelCapability): NonNullable<ModelChannel["modelProfiles"]>[number] {
     const existing = channel.modelProfiles?.find((profile) => profile.model === item.id);
+    if (channel.provider_id === "ark-video") return existing?.protocol === "volcengine-ark-video" ? existing : arkVideoModelProfile(item.id, existing?.provider_model_family);
     if (existing?.protocol && !explicitCapability) {
         const definition = protocols.find((protocol) => protocol.value === existing.protocol && protocol.enabled !== false);
         if (definition && definition.authType !== existing.authType) return { ...existing, authType: definition.authType };
@@ -44,6 +48,7 @@ export function serviceModelProfile(channel: ModelChannel, item: ChannelModelCat
         openai: { text: "openai-response", image: "openai-image", video: "newapi" },
         gemini: { text: "gemini-generate-content", image: "gemini-image", video: "gemini-veo" },
         ark: { text: "chat-completion", image: "volcengine-ark-image", video: "volcengine-ark-video" },
+        "ark-video": { video: "volcengine-ark-video" },
     };
     const endpoints: Record<string, string> = { "responses": "openai-response", "openai-responses": "openai-response", "chat.completions": "chat-completion", "chat-completions": "chat-completion", "images.generations": "openai-image", "image-generation": "openai-image", "audio.speech": "openai-audio", "openai-video": "newapi", "openai-videos": "newapi", "video-generations-json": "video-generations-json", "volcengine-ark-video": "volcengine-ark-video" };
     const endpoint = item.supportedEndpointTypes?.map((value) => endpoints[value.trim().toLowerCase()]).find((id) => protocols.some((p) => p.value === id && p.capability === capability && p.enabled !== false));
@@ -95,9 +100,13 @@ export function serviceConnectionError(channel: ModelChannel, options?: { protoc
 }
 
 export function modelCatalogRequestURL(channel: ModelChannel) {
-    if (!channel.baseUrl.trim()) return "";
+    if (!channel.baseUrl.trim() || modelCatalogSource(channel) === "preset") return "";
     try {
         if (channel.apiFormat === "gemini") return `${channel.baseUrl.replace(/\/+$/, "").replace(/\/v1beta$/, "")}/v1beta/models`;
         return buildApiUrl(channel.baseUrl, "/models");
     } catch { return ""; }
+}
+
+export function modelCatalogSource(channel: Pick<ModelChannel, "provider_id">): "remote" | "preset" {
+    return channel.provider_id === "ark-video" ? "preset" : "remote";
 }

@@ -16,7 +16,7 @@ export type DirectTestResult = {
 
 export function defaultModelDirectTestRequest(channel: ModelChannel): DirectTestRequest {
     return {
-        url: servicePresetFor(channel) === "ark" ? buildApiUrl(channel.baseUrl, "/contents/generations/tasks") : modelCatalogRequestURL(channel),
+        url: ["ark", "ark-video"].includes(servicePresetFor(channel)) ? buildApiUrl(channel.baseUrl, "/contents/generations/tasks") : modelCatalogRequestURL(channel),
         method: "GET",
         body: "{}",
     };

@@ -7,6 +7,7 @@ import { ChannelHeadersEditor, validateChannelHeaders } from "@/components/chann
 import { WorkspaceState } from "@/components/layout/workspace-state";
 import { PageHeader } from "@/components/layout/workspace-page";
 import { mergeFetchedChannelModelProfiles } from "@/lib/channel-model-catalog";
+import { arkVideoModelProfile } from "@/lib/ark-video-models";
 import { seedancePortraitModel } from "@/lib/seedance-portrait";
 import { ensureModelProfilesWithUiDefaults } from "@/lib/model-protocols";
 import { fetchChannelModels, type ChannelModelFetchResult } from "@/services/api/image";
@@ -16,7 +17,7 @@ import { ModelServiceEditor } from "./model-service-editor";
 import { currentModelConnectionReceipt, useModelConnectionTests } from "@/stores/use-model-connection-tests";
 import { ModelLogo } from "@/components/model-logo";
 import beefTVAppIcon from "@/assets/app-icon.png";
-import { MODEL_SERVICE_PRESETS, isTopazUpscaleChannel, channelAllowsEmptyAPIKey, modelCatalogRequestURL, servicePresetFor } from "@/lib/model-service-presets";
+import { MODEL_SERVICE_PRESETS, isTopazUpscaleChannel, channelAllowsEmptyAPIKey, modelCatalogRequestURL, modelCatalogSource, servicePresetFor } from "@/lib/model-service-presets";
 import { workspaceCapabilities } from "@/services/workspace-mode";
 import { localWorkspaceConfig } from "@/lib/user-session";
 import { readModelConfig } from "@/services/model-config-repository";
@@ -406,7 +407,7 @@ export function ChannelSettingsPane({ onOpenDiagnostics, onOpenModels, onOpenRun
                                             <ChannelStatus channel={channel} persistence={persistence} connection={builtinBeefAPI ? beefConnection : null} />
                                         </div>
                                         {topazUpscale ? <p className="mt-1 text-xs text-foreground/55">从图片或视频节点上方的「AI超分」使用</p> : null}
-                                        {!builtinBeefAPI && !topazUpscale && <p className="mt-1 break-all text-xs text-foreground/50">模型目录地址：{modelCatalogRequestURL(channel)}</p>}
+                                        {!builtinBeefAPI && !topazUpscale && <p className="mt-1 break-all text-xs text-foreground/50">{modelCatalogSource(channel) === "preset" ? "模型来源：预置视频模型 / 自定义 Endpoint ID" : `模型目录地址：${modelCatalogRequestURL(channel)}`}</p>}
                                     </div>
                                     <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto sm:shrink-0">
                                         {builtinBeefAPI && catalogSyncFailed ? <Button loading={beefBusy} onClick={() => void runBeefAction(getBeefAPIConnection, "无法更新模型列表")}>重试更新模型列表</Button> : null}
@@ -432,7 +433,7 @@ export function ChannelSettingsPane({ onOpenDiagnostics, onOpenModels, onOpenRun
                                             disabled={loadingChannelIds.includes("all") || (builtinBeefAPI && beefConnection?.state !== "connected")}
                                             onClick={() => void refreshChannelModels(channel)}
                                         >
-                                            拉取模型
+                                            {modelCatalogSource(channel) === "preset" ? "加载预置模型" : "拉取模型"}
                                         </Button>
                                         ) : null}
                                         {!builtinBeefAPI && !topazUpscale && <Button size="small" onClick={() => setDirectTestChannel(structuredClone(channel))}>测试直连</Button>}
@@ -474,7 +475,7 @@ export function ChannelSettingsPane({ onOpenDiagnostics, onOpenModels, onOpenRun
                                                 <span className="text-xs text-foreground/50">{localMode ? "更改实时保存到本地工作区" : "更改实时保存到云端渠道配置"}</span>
                                                 <div className="model-editor-footer-actions">
                                                     <Button loading={loadingChannelIds.includes(channel.id)} onClick={() => void refreshChannelModels(channel)}>
-                                                        拉取模型
+                                                        {modelCatalogSource(channel) === "preset" ? "加载预置模型" : "拉取模型"}
                                                     </Button>
                                                     <Button onClick={closeChannelEditor}>完成</Button>
                                                 </div>
@@ -601,7 +602,7 @@ export function ChannelSettingsPane({ onOpenDiagnostics, onOpenModels, onOpenRun
 }
 
 export function applyFetchedChannelModelCatalog(channel: ModelChannel, result: ChannelModelFetchResult): ModelChannel {
-    const profiles = mergeFetchedChannelModelProfiles(channel, result.catalog);
+    const profiles = channel.provider_id === "ark-video" ? result.models.map(model => channel.modelProfiles?.find(profile => profile.model === model) || arkVideoModelProfile(model)) : mergeFetchedChannelModelProfiles(channel, result.catalog);
     if (channel.id === "beefapi") return { ...channel, models: uniqueModels(result.models), modelProfiles: profiles };
     const existing = new Map((channel.modelProfiles || []).map((profile) => [profile.model, profile]));
     // Refresh updates the catalog without silently enabling new models or removing manual ones.

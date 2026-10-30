@@ -1,4 +1,5 @@
 import { createClientId } from "@/lib/client-id";
+import { createBrowserGenerationTask, usesBrowserVideoProvider } from "@/services/browser-generation-tasks";
 import { getMediaBlob } from "@/services/file-storage";
 import { resolveReferenceMediaDuration } from "@/lib/reference-media-metadata";
 import { getImageBlob } from "@/services/image-storage";
@@ -33,7 +34,7 @@ export type BackendGenerationResult = {
     reasoning?: string;
 };
 
-type BackendGenerationTaskOptions = {
+export type BackendGenerationTaskOptions = {
     projectId?: string;
     mode: BackendGenerationMode;
     prompt: string;
@@ -77,7 +78,7 @@ type PreparedGenerationReferences = {
     mask?: Awaited<ReturnType<typeof prepareBackendImageReference>>;
 };
 
-// 生成、取消和任务记录必须共用后端任务生命周期，页面层不能再直连供应商。
+// 画布共用任务生命周期；浏览器提供商由本地任务执行层管理。
 export async function runBackendGenerationTask(
     {
         projectId,
@@ -103,6 +104,10 @@ export async function runBackendGenerationTask(
     dependencies: GenerationTaskDependencies = defaultDependencies,
 ) {
     throwIfAborted(signal);
+    if (usesBrowserVideoProvider({ config, mode })) {
+        const task = await createBrowserGenerationTask({ projectId, mode, prompt, config, referenceImages, referenceVideos, referenceAudios, signal, metadata, onTaskUpdate, clientOperationId, retryOf, attemptGroupId, resolveReferenceLinks });
+        return parseBackendGenerationResult(await waitForGenerationTask(task.id, { signal, initialTask: task, onTaskUpdate }));
+    }
     assertClientPromptLimit(mode, prompt, config, metadata);
     assertBackendRuntimeConfigured(config, mode);
     const prepared = await prepareGenerationReferences({ config, mode, referenceImages, referenceVideos, referenceAudios, mask });
@@ -119,6 +124,7 @@ export async function runBackendGenerationTask(
 // 后端自动回填负责，不能让页面 mutation 一直等待供应商完成。
 export async function submitBackendGenerationTask(options: BackendGenerationTaskOptions, dependencies: GenerationTaskDependencies = defaultDependencies): Promise<GenerationTask> {
     throwIfAborted(options.signal);
+    if (usesBrowserVideoProvider(options)) return createBrowserGenerationTask(options);
     assertClientPromptLimit(options.mode, options.prompt, options.config, options.metadata);
     assertBackendRuntimeConfigured(options.config, options.mode);
     const prepared = await prepareGenerationReferences(options);
@@ -193,6 +199,7 @@ export async function runBackendToolGenerationTask(options: BackendToolGeneratio
 export async function runBackendGenerationTaskBatch(options: BackendGenerationTaskOptions & { count: number }, dependencies: GenerationTaskDependencies = defaultDependencies) {
     const count = Math.max(1, Math.min(15, Math.floor(Number(options.count)) || 1));
     throwIfAborted(options.signal);
+    if (usesBrowserVideoProvider(options)) return Promise.allSettled(Array.from({ length: count }, (_, batchIndex) => runBackendGenerationTask({ ...options, clientOperationId: options.retryContextsByBatchIndex?.[batchIndex]?.clientOperationId || createClientId(), metadata: { ...options.metadata, batchIndex, batchCount: count } })));
     assertClientPromptLimit(options.mode, options.prompt, options.config, options.metadata);
     if (options.retryContextsByBatchIndex && options.retryContextsByBatchIndex.length !== count) throw new Error("生成重试批次任务数量不匹配");
     const prepared = await prepareGenerationReferences(options);

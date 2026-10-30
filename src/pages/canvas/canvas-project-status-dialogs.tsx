@@ -1,4 +1,6 @@
 import { Button, Modal } from "antd";
+import { BrowserTaskAssociation } from "@/components/browser-task-association";
+import { isBrowserGenerationTask } from "@/services/browser-generation-tasks";
 import { XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -61,6 +63,8 @@ export function CanvasProjectStatusDialogs({ theme, task, taskLogs, taskLoading,
                         </div>
                         <TaskGenerationParameters inputJson={task.inputJson} theme={theme} />
                         {task.error ? <p role="status" className="whitespace-pre-wrap break-words">{task.error}</p> : null}
+                        {isBrowserGenerationTask(task.id) && !task.providerRequestId && ["submitting", "submission_unknown"].includes(task.stage || "") && <BrowserTaskAssociation key={task.id} taskId={task.id} />}
+                        {isBrowserGenerationTask(task.id) && task.providerRequestId && <TaskDetailItem label="方舟任务 ID" value={task.providerRequestId} />}
                         {onRetrieveTask && canRecoverTaskOutcome(readTaskOutcome(task)) ? (
                             <div className="flex flex-wrap items-center justify-between gap-3">
                                 <p>查询原任务并取回生成结果，不会重新生成。</p>

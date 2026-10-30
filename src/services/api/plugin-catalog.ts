@@ -33,6 +33,7 @@ export async function fetchPluginProviderCatalog(scope: string, capability?: Pro
 }
 
 const BUILTIN_PROTOCOLS: ModelProtocolDefinition[] = [
+    { value: "volcengine-ark-video", label: "火山方舟视频", vendor: "Volcengine", capability: "video", create: "POST /api/v3/contents/generations/tasks", poll: "GET /api/v3/contents/generations/tasks/{task_id}", contentType: "application/json", media: "内置协议", enabled: true },
     { value: "chat-completion", label: "OpenAI Chat Completions", vendor: "OpenAI", capability: "text", create: "POST /v1/chat/completions", contentType: "application/json", media: "内置协议", enabled: true },
     { value: "openai-response", label: "OpenAI Responses", vendor: "OpenAI", capability: "text", create: "POST /v1/responses", contentType: "application/json", media: "内置协议", enabled: true },
     { value: "openai-image", label: "OpenAI Images", vendor: "OpenAI", capability: "image", create: "POST /v1/images/generations", contentType: "application/json", media: "内置协议", enabled: true },
