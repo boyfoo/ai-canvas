@@ -9,7 +9,7 @@
         "typecheck": "bun node_modules/typescript/bin/tsc --noEmit",
         "test:canvas": "bun test test/canvas-media-performance.test.ts test/canvas-node-title-interaction.test.ts test/canvas-generation-node-title.test.ts test/canvas-spatial-index.test.ts",
         "test:browser": "node scripts/smoke-browser.mjs",
-        "test": "bun test test/channel-request.test.ts test/model-config-repository.test.ts test/canvas-host.test.ts test/canvas-host-boundary.test.ts test/canvas-media-performance.test.ts test/canvas-node-title-interaction.test.ts test/canvas-generation-node-title.test.ts test/canvas-spatial-index.test.ts test/director-save-coordinator.test.ts test/director-save-wiring.test.ts",
+        "test": "bun test test/channel-request.test.ts test/model-direct-test.test.ts test/model-config-repository.test.ts test/canvas-host.test.ts test/canvas-host-boundary.test.ts test/canvas-media-performance.test.ts test/canvas-node-title-interaction.test.ts test/canvas-generation-node-title.test.ts test/canvas-spatial-index.test.ts test/director-save-coordinator.test.ts test/director-save-wiring.test.ts",
         "start": "bun node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port 3000",
         "format": "prettier --write .",
         "format:check": "prettier --check .",

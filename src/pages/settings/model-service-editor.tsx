@@ -16,6 +16,7 @@ import { ChannelModelSettings } from "./channel-model-settings";
 import { currentModelConnectionReceipt, useModelConnectionTests } from "@/stores/use-model-connection-tests";
 import "./model-service-editor.css";
 import { getTransportFailureKind } from "@/services/api/request";
+import { ModelDirectTestModal } from "./model-direct-test-modal";
 
 export function ModelServiceEditor({ initial, onClose, onSave }: { initial?: ModelChannel; onClose: () => void; onSave: (channel: ModelChannel) => Promise<void> }) {
     const [draft, setDraft] = useState<ModelChannel>(() => initial ? structuredClone(initial) : { ...createModelChannel(), name: "", baseUrl: "" });
@@ -28,6 +29,7 @@ export function ModelServiceEditor({ initial, onClose, onSave }: { initial?: Mod
     const [protocolLoading, setProtocolLoading] = useState(true);
     const [busy, setBusy] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [directTestOpen, setDirectTestOpen] = useState(false);
     const catalogRequest = useRef<AbortController | null>(null);
     const [error, setError] = useState("");
     const [notice, setNotice] = useState("");
@@ -184,7 +186,7 @@ export function ModelServiceEditor({ initial, onClose, onSave }: { initial?: Mod
     </AppModal>;
     const selectedPreset = MODEL_SERVICE_PRESETS.find((item) => item.id === presetId)!;
 
-    return <AppModal open centered width={1000} flush footer={null} title={null} closable={!saving} keyboard={!saving} mask={{ closable: false }} onCancel={() => { catalogRequest.current?.abort(); onClose(); }} rootClassName="model-service-modal">
+    return <><AppModal open centered width={1000} flush footer={null} title={null} closable={!saving} keyboard={!saving} mask={{ closable: false }} onCancel={() => { catalogRequest.current?.abort(); onClose(); }} rootClassName="model-service-modal">
         <div className="model-service-header">
             <h2>{initial ? `管理 ${initial.name}` : "连接你的模型服务"}</h2>
             <ol className="model-service-steps" aria-label="接入步骤">
@@ -240,7 +242,8 @@ export function ModelServiceEditor({ initial, onClose, onSave }: { initial?: Mod
             {notice && <Alert type="info" showIcon title={notice} />}
         </div>}
         <div className="model-service-footer">{step === 1 && <span>保存后，可在创作页选择这些模型</span>}<div>
+            <Button disabled={busy} onClick={() => { if (validateConnection(false)) setDirectTestOpen(true); }}>测试直连</Button>
             {step === 0 ? <><Button disabled={busy} onClick={() => { if (validateConnection(false)) { setNotice(""); setStep(1); } }}>手动添加模型</Button><Button type="primary" loading={busy} disabled={protocolLoading} onClick={() => void fetchModels()}>读取模型</Button></> : <><Button disabled={busy} icon={<ArrowLeft size={15} />} onClick={() => { setStep(0); setError(""); }}>连接信息</Button><Button type="primary" loading={busy} disabled={!draft.models.length || protocolLoading} icon={<Check size={15} />} onClick={() => void save()}>保存并使用</Button></>}
         </div></div>
-    </AppModal>;
+    </AppModal>{directTestOpen && <ModelDirectTestModal channel={draft} onClose={() => setDirectTestOpen(false)} />}</>;
 }

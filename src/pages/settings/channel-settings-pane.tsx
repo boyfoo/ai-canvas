@@ -25,6 +25,7 @@ import { createChannelCatalogRequests } from "@/services/channel-catalog-request
 import { getTransportFailureKind } from "@/services/api/request";
 import { beefAPIConnectionLabel, cancelBeefAPIConnection, disconnectBeefAPIConnection, getBeefAPIConnection, openBeefAPIWallet, startBeefAPIConnection, type BeefAPIConnectionSummary } from "@/services/api/beefapi-connection";
 import { recordChannelDelete, recordChannelDeleteConfirmOpen } from "./model-settings-diagnostics";
+import { ModelDirectTestModal } from "./model-direct-test-modal";
 
 type UserChannelConnection = "openai" | "gemini";
 type ChannelSettingsPaneProps = {
@@ -43,6 +44,7 @@ export function ChannelSettingsPane({ onOpenDiagnostics, onOpenModels, onOpenRun
     const [editingChannelId, setEditingChannelId] = useState<string | null>(null);
     const [newChannelId, setNewChannelId] = useState<string | null>(null);
     const [serviceEditor, setServiceEditor] = useState<ModelChannel | null | undefined>(undefined);
+    const [directTestChannel, setDirectTestChannel] = useState<ModelChannel | null>(null);
     const [beefConnection, setBeefConnection] = useState<BeefAPIConnectionSummary | null>(null);
     const [beefBusy, setBeefBusy] = useState(false);
     const appliedConnectionState = useRef<string | undefined>(undefined);
@@ -433,6 +435,7 @@ export function ChannelSettingsPane({ onOpenDiagnostics, onOpenModels, onOpenRun
                                             拉取模型
                                         </Button>
                                         ) : null}
+                                        {!builtinBeefAPI && !topazUpscale && <Button size="small" onClick={() => setDirectTestChannel(structuredClone(channel))}>测试直连</Button>}
                                         <Button
                                             size="small"
                                             icon={<Pencil className="size-3.5" />}
@@ -592,6 +595,7 @@ export function ChannelSettingsPane({ onOpenDiagnostics, onOpenModels, onOpenRun
                 />
             )}
             {serviceEditor !== undefined && <ModelServiceEditor initial={serviceEditor || undefined} onClose={() => setServiceEditor(undefined)} onSave={saveService} />}
+            {directTestChannel && <ModelDirectTestModal channel={directTestChannel} onClose={() => setDirectTestChannel(null)} />}
         </Form>
     );
 }

@@ -10,7 +10,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const dist = resolve(root, "dist");
 const output = resolve(root, ".local/browser-smoke");
 mkdirSync(output, { recursive: true });
-const apiCalls = [], modelCalls = [], errors = [], checks = [];
+const apiCalls = [], modelCalls = [], preflightCalls = [], errors = [], checks = [];
 async function readBrowserRecord(page, key) {
     return page.evaluate(async key => {
         const database = await new Promise((resolve, reject) => { const request = indexedDB.open("infinite-canvas"); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
@@ -50,13 +50,23 @@ const server = createServer(async (request, response) => {
 
 // A separate CORS model service verifies the browser actually requests its URL.
 // Uses synthetic credentials; no real model or paid requests.
-const models = createServer((request, response) => {
-    response.setHeader("Access-Control-Allow-Origin", origin);
-    response.setHeader("Access-Control-Allow-Headers", "authorization, content-type");
-    response.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-    if (request.method === "OPTIONS") { response.writeHead(204); response.end(); return; }
-    modelCalls.push({ method: request.method, path: request.url, authorization: request.headers.authorization, cookie: request.headers.cookie });
+const models = createServer(async (request, response) => {
+    const blocked = request.url === "/v1/cors-blocked";
+    if (!blocked) {
+        response.setHeader("Access-Control-Allow-Origin", origin);
+        response.setHeader("Access-Control-Allow-Headers", "authorization, content-type");
+        response.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    }
+    if (request.method === "OPTIONS") { preflightCalls.push(request.url); response.writeHead(204); response.end(); return; }
+    const call = { method: request.method, path: request.url, authorization: request.headers.authorization, cookie: request.headers.cookie };
+    modelCalls.push(call);
     response.setHeader("Content-Type", "application/json");
+    if (request.url === "/v1/direct-unauthorized") { response.writeHead(401); response.end(JSON.stringify({ error: { code: "invalid_api_key", message: "Synthetic authorization error" } })); return; }
+    if (request.method === "POST") {
+        const chunks = []; for await (const chunk of request) chunks.push(chunk);
+        call.body = Buffer.concat(chunks).toString();
+        response.end(JSON.stringify({ message: "direct-post-ok" })); return;
+    }
     response.end(JSON.stringify({ data: [{ id: "smoke-text", supported_endpoint_types: ["chat.completions"] }] }));
 });
 await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -113,6 +123,34 @@ try {
     await page.getByRole("textbox", { name: "连接名称", exact: true }).fill("浏览器直连测试");
     await page.getByLabel("API Key", { exact: true }).fill("synthetic-test-key");
     await page.getByRole("textbox", { name: "服务地址", exact: true }).fill(`${modelOrigin}/v1`);
+    await page.getByRole("button", { name: "测试直连", exact: true }).click();
+    const directDialog = page.getByRole("dialog", { name: "测试浏览器直连", exact: true });
+    await directDialog.getByRole("textbox", { name: "直连请求地址", exact: true }).fill(`${modelOrigin}/v1/direct-unauthorized`);
+    await directDialog.getByRole("button", { name: "发送直连请求", exact: true }).click();
+    await directDialog.getByText("已收到 HTTP 401 响应", { exact: true }).waitFor();
+    checks.push("direct test reports a readable HTTP 401 without misclassifying it as CORS");
+
+    await directDialog.getByRole("textbox", { name: "直连请求地址", exact: true }).fill(`${modelOrigin}/v1/cors-blocked`);
+    await directDialog.getByRole("button", { name: "发送直连请求", exact: true }).click();
+    await directDialog.getByText("浏览器未读到服务响应", { exact: true }).waitFor();
+    assert.ok(preflightCalls.includes("/v1/cors-blocked"));
+    assert.equal(modelCalls.some(call => call.path === "/v1/cors-blocked"), false, "browser must block the actual GET after a rejected CORS preflight");
+    checks.push("direct test handles a real browser CORS preflight rejection");
+
+    await directDialog.getByRole("textbox", { name: "直连请求地址", exact: true }).fill(`${modelOrigin}/v1/direct-post`);
+    await directDialog.getByLabel("直连请求方法", { exact: true }).click();
+    await page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").getByText("POST · 提交 JSON", { exact: true }).click();
+    await page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").waitFor({ state: "hidden" });
+    await directDialog.getByRole("textbox", { name: "直连 JSON 请求体", exact: true }).fill('{"model":"synthetic","prompt":"test"}');
+    await directDialog.getByRole("button", { name: "发送直连请求", exact: true }).click();
+    await directDialog.getByText("已收到 HTTP 200 响应", { exact: true }).waitFor();
+    assert.equal(modelCalls.at(-1)?.method, "POST");
+    assert.equal(modelCalls.at(-1)?.body, '{"model":"synthetic","prompt":"test"}');
+    assert.equal(modelCalls.at(-1)?.cookie, undefined);
+    await page.screenshot({ path: resolve(output, "direct-test.png") });
+    await directDialog.getByRole("button", { name: "关闭直连测试", exact: true }).click();
+    checks.push("direct test sends custom POST JSON directly from the browser");
+
     await page.getByRole("button", { name: "读取模型", exact: true }).click();
     await page.getByText("smoke-text", { exact: true }).waitFor();
     assert.equal(modelCalls.at(-1)?.path, "/v1/models");
@@ -128,6 +166,11 @@ try {
     const modelConfig = await readBrowserRecord(page, "infinite-canvas:model_config:user:local");
     assert.ok(modelConfig.config.channels.some(channel => channel.name === "浏览器直连测试" && channel.apiKey === "synthetic-test-key"), "model credentials must survive a reload in browser storage");
     checks.push("model channel and credentials survive reload using browser persistence");
+
+    await page.locator(".settings-channel").filter({ hasText: "浏览器直连测试" }).getByRole("button", { name: "测试直连", exact: true }).click();
+    await directDialog.getByRole("textbox", { name: "直连请求地址", exact: true }).waitFor();
+    await directDialog.getByRole("button", { name: "关闭直连测试", exact: true }).click();
+    checks.push("saved model channels expose the direct test without editing the connection");
 
     await page.screenshot({ path: resolve(output, "settings.png") });
 
