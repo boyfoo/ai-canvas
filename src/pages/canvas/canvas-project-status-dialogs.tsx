@@ -1,5 +1,6 @@
 import { Button, Modal } from "antd";
 import { BrowserTaskAssociation } from "@/components/browser-task-association";
+import { BrowserDraftPromotion } from "@/components/browser-draft-promotion";
 import { isBrowserGenerationTask } from "@/services/browser-generation-tasks";
 import { XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -62,6 +63,7 @@ export function CanvasProjectStatusDialogs({ theme, task, taskLogs, taskLoading,
                             </div>
                         </div>
                         <TaskGenerationParameters inputJson={task.inputJson} theme={theme} />
+                        <BrowserDraftPromotion key={task.id} task={task} />
                         {task.error ? <p role="status" className="whitespace-pre-wrap break-words">{task.error}</p> : null}
                         {isBrowserGenerationTask(task.id) && !task.providerRequestId && ["submitting", "submission_unknown"].includes(task.stage || "") && <BrowserTaskAssociation key={task.id} taskId={task.id} />}
                         {isBrowserGenerationTask(task.id) && task.providerRequestId && <TaskDetailItem label="方舟任务 ID" value={task.providerRequestId} />}

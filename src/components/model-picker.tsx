@@ -18,6 +18,8 @@ type ModelPickerProps = {
     className?: string;
     popoverClassName?: string;
     fullWidth?: boolean;
+    /** 工具栏需要完整名称时按内容排版，长名称换行，不用省略号。 */
+    fitContent?: boolean;
     placeholder?: string;
     onMissingConfig?: () => void;
     variant?: "default" | "creation";
@@ -33,6 +35,7 @@ export function ModelPicker({
     className,
     popoverClassName,
     fullWidth = false,
+    fitContent = false,
     placeholder = "选择模型",
     onMissingConfig,
     variant = "creation",
@@ -261,15 +264,16 @@ export function ModelPicker({
                 <button
                     ref={triggerRef}
                     type="button"
-                    className={cn("canvas-composer-model-picker", fullWidth ? "w-full" : "min-w-36 max-w-full", className)}
+                    className={cn("canvas-composer-model-picker", fitContent ? "w-max max-w-full" : fullWidth ? "w-full" : "min-w-36 max-w-full", className)}
                     aria-haspopup="listbox"
                     aria-expanded={open}
                     aria-label={triggerLabel}
                     title={current ? pickerModelOptionLabel(config, current, showConfiguredModelName) : placeholder}
                     onKeyDown={handleTriggerKeyDown}
                 >
-                    <span className="canvas-model-picker-label flex min-w-0 items-center gap-1.5">
-                        <span className="min-w-0 flex-1 truncate">{triggerLabel}</span>
+                    {fitContent ? <span className="size-3 shrink-0" aria-hidden="true" /> : null}
+                    <span className={cn("canvas-model-picker-label flex min-w-0 items-center gap-1.5", fitContent && "flex-1 justify-center")}>
+                        <span className={cn("min-w-0 flex-1", fitContent ? "whitespace-normal break-words text-center leading-5 [overflow-wrap:anywhere]" : "truncate")}>{triggerLabel}</span>
                     </span>
                     <ChevronDown className={cn("canvas-model-picker-chevron", open && "is-open")} aria-hidden="true" />
                 </button>

@@ -3,6 +3,9 @@ import { createPortal } from "react-dom";
 import { Settings2 } from "lucide-react";
 import { Button } from "antd";
 
+import { CanvasProviderParameterFields } from "@/components/generation-parameter-fields";
+import { videoGenerationSettings } from "@/lib/generation-parameters";
+import type { GenerationParameterInput } from "@/lib/generation-parameter-types";
 import { VideoSettingsPanel, videoResolutionLabel, videoSecondsLabel, videoSizeLabel } from "@/components/video-settings-panel";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { canvasPopoverLayer } from "@/lib/canvas/canvas-popover-layer";
@@ -14,6 +17,8 @@ import type { VideoSettingsConstraints } from "@/lib/video-settings-constraints"
 type CanvasVideoSettingsPopoverProps = {
     children?: ReactNode;
     taskConstraints?: VideoSettingsConstraints;
+    parameterInput?: GenerationParameterInput;
+    onProviderOptionsChange?: (value: NonNullable<AiConfig["providerOptions"]>) => void;
     config: AiConfig;
     onConfigChange: (key: keyof AiConfig, value: string) => void;
     buttonClassName?: string;
@@ -21,22 +26,26 @@ type CanvasVideoSettingsPopoverProps = {
     summaryOverride?: string;
 };
 
-export function CanvasVideoSettingsPopover({ config, onConfigChange, buttonClassName, placement = "topLeft", summaryOverride, taskConstraints, children }: CanvasVideoSettingsPopoverProps) {
+export function CanvasVideoSettingsPopover({ config, onConfigChange, buttonClassName, placement = "topLeft", summaryOverride, taskConstraints, parameterInput, onProviderOptionsChange, children }: CanvasVideoSettingsPopoverProps) {
     const theme = canvasThemes[useActiveTheme()];
     const buttonRef = useRef<HTMLSpanElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
     const [open, setOpen] = useState(false);
     const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
     const capabilityConfig = modelCapabilityConfigFor(config, config.model);
-    const videoProfile = capabilityConfig.video;
+    const { config: effectiveConfig, profile: videoProfile, parameters } = videoGenerationSettings(config, parameterInput);
+    const durationField = parameters?.common.find(field => field.key === "videoSeconds" && field.forcedValue !== undefined);
+    const durationLocked = taskConstraints?.durationLocked || Boolean(durationField);
     const resolutionSupported = Boolean(videoProfile?.resolutions.length);
     const sizeSupported = Boolean(videoProfile?.ratios.length);
-    const resolution = videoProfile ? resolveVideoResolutionValue(videoProfile, config.vquality) : "";
-    const size = videoProfile ? resolveVideoRatioValue(videoProfile, config.size) : "";
+    const resolution = videoProfile ? resolveVideoResolutionValue(videoProfile, effectiveConfig.vquality) : "";
+    const size = videoProfile ? resolveVideoRatioValue(videoProfile, effectiveConfig.size) : "";
+    const ratioField = parameters?.common.find(field => field.key === "size" && field.forcedValue !== undefined);
     const summary = [
         ...(resolutionSupported ? [videoResolutionLabel(resolution)] : []),
-        ...(sizeSupported ? [taskConstraints?.ratioLabel || videoSizeLabel(size)] : []),
-        taskConstraints?.durationLocked ? "随原视频时长" : videoSecondsLabel(config.videoSeconds, videoProfile),
+        ...(sizeSupported ? [ratioField?.options?.[0]?.label || taskConstraints?.ratioLabel || videoSizeLabel(size)] : []),
+        ...(videoProfile && videoProfile.durationSupported !== false ? [durationLocked ? durationField?.summary?.(durationField.forcedValue) || taskConstraints?.durationLabel || "随原视频时长" : videoSecondsLabel(effectiveConfig.videoSeconds, videoProfile)] : []),
+        ...(parameters?.extensions.filter(field => !field.hidden && field.summary && parameters.values[field.key] !== undefined).map(field => field.summary!(parameters.values[field.key])) || []),
     ].join(" · ");
     const displaySummary = capabilityConfig.videoCapabilitiesUnavailable ? "模型能力未加载" : summaryOverride || summary;
 
@@ -62,7 +71,7 @@ export function CanvasVideoSettingsPopover({ config, onConfigChange, buttonClass
         };
     }, [open]);
 
-    const panel = open && buttonRect ? <VideoSettingsPortal layer={canvasPopoverLayer(buttonRef.current)} buttonRect={buttonRect} panelRef={panelRef} placement={placement} theme={theme} config={config} onConfigChange={onConfigChange} taskConstraints={taskConstraints}>{children}</VideoSettingsPortal> : null;
+    const panel = open && buttonRect ? <VideoSettingsPortal layer={canvasPopoverLayer(buttonRef.current)} buttonRect={buttonRect} panelRef={panelRef} placement={placement} theme={theme} config={config} onConfigChange={onConfigChange} taskConstraints={taskConstraints} parameterInput={parameterInput} onProviderOptionsChange={onProviderOptionsChange}>{children}</VideoSettingsPortal> : null;
 
     return (
         <>
@@ -85,11 +94,15 @@ function VideoSettingsPortal({
     config,
     onConfigChange,
     taskConstraints,
+    parameterInput,
+    onProviderOptionsChange,
     children,
 }: {
     layer: number | string;
     children?: ReactNode;
     taskConstraints?: VideoSettingsConstraints;
+    parameterInput?: GenerationParameterInput;
+    onProviderOptionsChange?: (value: NonNullable<AiConfig["providerOptions"]>) => void;
     buttonRect: DOMRect;
     panelRef: RefObject<HTMLDivElement | null>;
     placement: CanvasVideoSettingsPopoverProps["placement"];
@@ -132,7 +145,8 @@ function VideoSettingsPortal({
             onMouseDown={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
         >
-            <VideoSettingsPanel config={config} onConfigChange={(key, value) => onConfigChange(key, value)} theme={theme} className="space-y-3" taskConstraints={taskConstraints} />
+            <VideoSettingsPanel config={config} onConfigChange={(key, value) => onConfigChange(key, value)} theme={theme} className="space-y-3" taskConstraints={taskConstraints} parameterInput={parameterInput} />
+            {onProviderOptionsChange ? <CanvasProviderParameterFields config={config} theme={theme} input={parameterInput} onChange={onProviderOptionsChange} /> : null}
             {children ? <div className="mt-3">{children}</div> : null}
         </div>,
         document.body,

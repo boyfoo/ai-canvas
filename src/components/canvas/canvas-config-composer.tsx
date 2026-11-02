@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, KeyboardEvent, MouseEvent, PointerEvent } from "react";
+import type { CSSProperties, KeyboardEvent, MouseEvent, PointerEvent, ReactNode } from "react";
 import { Button, Image } from "antd";
 import { FileText, Image as ImageIcon, Music2, Pencil, Sparkles, Video, X } from "lucide-react";
 
@@ -27,6 +27,8 @@ type CanvasConfigComposerProps = {
     onMetadataChange?: (patch: Partial<CanvasNodeMetadata>) => void;
     onClose: () => void;
     workspaceMode?: CanvasWorkspaceMode;
+    providerReferenceMode?: "none" | "frames" | "all";
+    videoFrameSlots?: ReactNode;
 };
 
 type Token =
@@ -49,7 +51,7 @@ type ComposerCandidate =
 
 export const CONFIG_REFERENCE_PATTERN = /@\[node:([^\]]+)\]|@(图片|视频|音频|文本|角色|绘图)(\d+)/g;
 
-export function CanvasConfigComposer({ value, inputs, skillReferences = [], generationMode, metadata, model="", onChange, onMetadataChange, onClose, workspaceMode = "professional" }: CanvasConfigComposerProps) {
+export function CanvasConfigComposer({ value, inputs, skillReferences = [], generationMode, metadata, model="", onChange, onMetadataChange, onClose, workspaceMode = "professional", providerReferenceMode, videoFrameSlots }: CanvasConfigComposerProps) {
     const theme = canvasThemes[useActiveTheme()];
     const promptFontSize = useCreationPreferencesStore((state) => state.preferences.promptFontSize ?? DEFAULT_PROMPT_FONT_SIZE);
     const promptTextStyle = { fontSize: promptFontSize, lineHeight: 1.5 };
@@ -184,7 +186,8 @@ export function CanvasConfigComposer({ value, inputs, skillReferences = [], gene
                     <Button size="small" type="text" className="!h-7 !w-7 !min-w-7 !p-0" icon={<X className="size-3.5" />} onClick={onClose} />
                 </div>
             </div>
-            {generationMode === "video" && onMetadataChange && !simpleMode ? (
+            {generationMode === "video" && !simpleMode && providerReferenceMode === "frames" ? videoFrameSlots : null}
+            {generationMode === "video" && onMetadataChange && !simpleMode && !providerReferenceMode ? (
                 <div className="mb-3 rounded-lg px-2 py-2" style={{ background: theme.node.fill }}>
                     <CanvasVideoPromptTools
                         metadata={metadata}

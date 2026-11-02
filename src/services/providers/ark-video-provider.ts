@@ -1,6 +1,7 @@
-import { ARK_VIDEO_MODELS, ARK_VIDEO_PROTOCOL } from "@/lib/ark-video-models";
-import { modelCapabilityConfigFor } from "@/lib/model-capabilities";
-import { resolveVideoOperation } from "@/lib/model-selection";
+import { arkVideoModelDefinition, ARK_VIDEO_PROTOCOL } from "@/lib/ark-video-models";
+import { generationParameterInput, providerRequestParameters, videoGenerationSettings } from "@/lib/generation-parameters";
+import { resolveVideoRatioValue } from "@/lib/model-capabilities";
+import { resolveVideoOperation, providerVideoOperations } from "@/lib/generation-operations";
 import { resolveReferenceMediaDuration } from "@/lib/reference-media-metadata";
 import { normalizeSeedanceRatio, normalizeSeedanceResolution } from "@/lib/seedance-video";
 import { createChannelTransport } from "@/services/api/channel-transport";
@@ -11,6 +12,9 @@ import { getImageBlob } from "@/services/image-storage";
 import { getMediaBlob } from "@/services/file-storage";
 import { buildApiUrl, modelOptionName, resolveModelChannel, type ModelChannel } from "@/stores/use-config-store";
 import type { BackendGenerationTaskOptions } from "@/services/api/generation-task";
+import type { ReferenceImage } from "@/types/image";
+import type { GenerationOperationDefinition } from "@/lib/generation-parameter-types";
+import { resolveVideoFrameIds } from "@/lib/video-frame-selection";
 
 export type VideoProviderObservation = {
     id: string;
@@ -19,6 +23,7 @@ export type VideoProviderObservation = {
     error_code?: string;
     video_url?: string;
     last_frame_url?: string;
+    mime_type: string;
     duration_ms?: number;
 };
 
@@ -98,6 +103,23 @@ async function referenceSource(media: { name: string; url?: string; dataUrl?: st
     return dataUrl(blob, signal);
 }
 
+/** 首尾帧按节点显式选择排序；参考模式保留素材顺序，不能把参考图误发成首帧。 */
+function arkImageInputs(images: ReferenceImage[], mode: GenerationOperationDefinition | undefined, metadata: BackendGenerationTaskOptions["metadata"]) {
+    const indexed = images.map((image, index) => ({ image, index }));
+    if (mode?.referenceMode !== "frames") return indexed.map(item => ({ ...item, role: "reference_image" }));
+    const selected = (value: unknown, label: string) => {
+        if (!value) return undefined;
+        const item = indexed.find(item => item.image.id === value);
+        if (!item) throw new Error(`所选${label}图片不可用，请重新选择`);
+        return item;
+    };
+    const frames = resolveVideoFrameIds(indexed.map((item) => item.image.id), metadata, mode.frameCount === 2);
+    const first = selected(frames.first, "首帧");
+    if (!first) throw new Error("首帧模式需要首帧图片；只指定尾帧时，请补充首帧或取消尾帧指定");
+    const tail = selected(frames.last, "尾帧");
+    return [{ ...first, role: "first_frame" }, ...(tail ? [{ ...tail, role: "last_frame" }] : [])];
+}
+
 export async function prepareArkVideo(options: BackendGenerationTaskOptions, progress?: (label: string, loaded: number, total: number) => void): Promise<Record<string, unknown>> {
     if (options.mode !== "video") throw new Error("火山方舟(视频版)仅支持视频生成");
     const { config, signal } = options;
@@ -105,36 +127,33 @@ export async function prepareArkVideo(options: BackendGenerationTaskOptions, pro
     if (!channel.apiKey.trim()) throw new Error("请填写方舟 API Key");
     const model = modelOptionName(config.model);
     const profile = channel.modelProfiles?.find(item => item.model === model);
-    const definition = ARK_VIDEO_MODELS.find(item => item.family === profile?.provider_model_family);
-    if (!definition || profile?.protocol !== ARK_VIDEO_PROTOCOL) throw new Error("请为视频模型配置对应的模型系列及方舟视频协议");
+    if (profile?.protocol !== ARK_VIDEO_PROTOCOL) throw new Error("请为视频模型配置对应的模型系列及方舟视频协议");
+    const definition = arkVideoModelDefinition(model, profile.provider_model_family);
     const images = options.referenceImages || [];
     const videos = await Promise.all((options.referenceVideos || []).map(resolveReferenceMediaDuration));
     const audios = await Promise.all((options.referenceAudios || []).map(resolveReferenceMediaDuration));
-    const operation = resolveVideoOperation({ textCount: 0, imageCount: images.length, videoCount: videos.length, audioCount: audios.length, characterCount: 0 }, options.metadata?.videoEditOperation as string | undefined);
-    const capabilities = modelCapabilityConfigFor(config, config.model).video!;
-    if (!capabilities.operations.includes(operation)) throw new Error("当前模型不支持所选视频生成方式");
-    const defaults = profile.defaultOptions || {};
+    const operation = resolveVideoOperation({ textCount: 0, imageCount: images.length, videoCount: videos.length, audioCount: audios.length, characterCount: 0 }, options.metadata?.videoEditOperation as string | undefined, config);
+    const defaults = config.providerOptions?.[ARK_VIDEO_PROTOCOL] ?? profile.defaultOptions ?? {};
     const supplied = (options.metadata?.providerOptions as Record<string, Record<string, unknown>> | undefined)?.[ARK_VIDEO_PROTOCOL] || {};
-    const extra = { ...defaults, ...supplied };
-    for (const [key, min, max] of [["priority", 0, 9], ["execution_expires_after", 3600, 259200], ["seed", -1, 2147483647]] as const) {
-        if (extra[key] !== undefined && (!Number.isInteger(extra[key]) || Number(extra[key]) < min || Number(extra[key]) > max)) throw new Error(`${key} 需为 ${min}–${max} 之间的整数`);
-    }
-    for (const key of ["return_last_frame", "draft", "camera_fixed"]) if (extra[key] !== undefined && typeof extra[key] !== "boolean") throw new Error(`${key} 必须为布尔值`);
-    if (extra.safety_identifier !== undefined && !/^[\x21-\x7E]{1,64}$/.test(String(extra.safety_identifier))) throw new Error("安全标识需为 1–64 位无空格的 ASCII 字符");
-    if (extra.output_format !== undefined && !["mp4", "mov"].includes(String(extra.output_format))) throw new Error("视频输出格式仅支持 MP4 / MOV");
-    if (extra.service_tier !== undefined && !["default", "flex"].includes(String(extra.service_tier))) throw new Error("服务等级仅支持 default / flex");
-    if (extra.service_tier === "flex" && extra.priority !== undefined) throw new Error("离线推理不支持设置优先级");
-    if (extra.tools !== undefined && (!Array.isArray(extra.tools) || !extra.tools.length || extra.tools.some(tool => !tool || typeof tool !== "object" || tool.type !== "web_search"))) throw new Error("视频工具仅支持 web_search");
-    if (extra.draft_task_id) {
-        if (definition.family !== "seedance25" || !/^cgt-[A-Za-z0-9_-]+$/.test(String(extra.draft_task_id))) throw new Error("样片转正式需要 Seedance 2.5 和有效的 cgt- 样片任务 ID");
-        const original = await createChannelTransport(channel, "video").get<{ model?: string; draft?: boolean; status?: string }>(buildApiUrl(channel.baseUrl, `/contents/generations/tasks/${encodeURIComponent(String(extra.draft_task_id))}`), { signal, timeout_ms: 20_000, validate_payload: false });
+    const requested = { ...defaults, ...supplied };
+    const draftTaskId = supplied.draft_task_id;
+    delete requested.draft_task_id;
+    const parameterInput = generationParameterInput(config, profile, { operation: draftTaskId ? "draft_promotion" : operation, references: { imageCount: images.length, videoCount: videos.length, audioCount: audios.length, videoDurationsMs: videos.map(video => video.durationMs || 0) } });
+    const extra = providerRequestParameters(channel, profile, requested, parameterInput);
+    const { config: effectiveConfig, profile: capabilities, parameters } = videoGenerationSettings({ ...config, providerOptions: { [ARK_VIDEO_PROTOCOL]: extra } }, parameterInput);
+    if (draftTaskId) {
+        if (definition.family !== "seedance25" || !/^cgt-[A-Za-z0-9_-]+$/.test(String(draftTaskId))) throw new Error("样片转正式需要 Seedance 2.5 和有效的 cgt- 样片任务 ID");
+        const original = await createChannelTransport(channel, "video").get<{ model?: string; draft?: boolean; status?: string }>(buildApiUrl(channel.baseUrl, `/contents/generations/tasks/${encodeURIComponent(String(draftTaskId))}`), { signal, timeout_ms: 20_000, validate_payload: false });
         if (!original.draft || original.status !== "succeeded" || original.model !== model) throw new Error("请使用同一个模型下已成功完成的样片任务");
-        return { model, content: [{ type: "draft_task", draft_task: { id: String(extra.draft_task_id) } }], resolution: "1080p", watermark: config.videoWatermark === "true", return_last_frame: extra.return_last_frame === true, ...(extra.output_format ? { output_format: extra.output_format } : {}) };
+        return { model, content: [{ type: "draft_task", draft_task: { id: String(draftTaskId) } }], resolution: "1080p", watermark: config.videoWatermark === "true", ...extra };
     }
-    assertVideoCapability(capabilities, images, videos, audios, config.videoSeconds, { operation });
+    if (!capabilities.operations.includes(operation)) throw new Error("当前模型不支持所选视频生成方式");
+    const mode = providerVideoOperations(config)?.find(item => item.value === operation);
+    const imageInputs = arkImageInputs(images, mode, options.metadata);
+    assertVideoCapability(capabilities, images, videos, audios, effectiveConfig.videoSeconds, { operation });
     const referenceRequests: ReferenceLinkRequest[] = [];
     for (const [kind, media] of [["image", images], ["video", videos], ["audio", audios]] as const) {
-        const method = profile.referenceMediaTransport?.[kind];
+        const method = channel.referenceMediaTransport?.[kind];
         if (method !== "url" && method !== "link") continue;
         media.forEach((item, index) => {
             if (sourceUrl(item.url || ("dataUrl" in item ? String(item.dataUrl) : "")) || ("arkAssetId" in item && item.arkAssetId)) return;
@@ -143,26 +162,21 @@ export async function prepareArkVideo(options: BackendGenerationTaskOptions, pro
     }
     const links = referenceRequests.length ? options.resolveReferenceLinks ? await options.resolveReferenceLinks(referenceRequests, signal) : await uploadReferenceLinks(referenceRequests, signal) : {};
     if (!links) throw new DOMException("已取消素材链接配置", "AbortError");
-    const resolution = normalizeSeedanceResolution(config.vquality);
+    const resolution = normalizeSeedanceResolution(effectiveConfig.vquality);
     const wireResolution = resolution === "2160p" ? "4k" : resolution;
     if (!capabilities.resolutions.some(value => normalizeSeedanceResolution(value) === resolution)) throw new Error("当前模型不支持所选视频分辨率");
     const content: Record<string, unknown>[] = [];
-    if (options.prompt.trim()) content.push({ type: "text", text: options.prompt.trim() });
-    const firstLast = operation === "image_to_video";
-    if (firstLast && images.length > 2) throw new Error("首尾帧模式最多使用两张图片；更多图片请选择全模态参考");
-    if (extra.camera_fixed && images.length) throw new Error("固定镜头仅支持文生视频，请关闭固定镜头后使用参考图片");
-    if (definition.family.startsWith("seedance10") && extra.tools) throw new Error("当前模型不支持联网搜索");
-    for (const [index, image] of images.entries()) content.push({ type: "image_url", image_url: { url: await referenceSource(image, "image", channel, signal, progress, profile.referenceMediaTransport?.image, links[`image:${index}`]) }, role: firstLast ? index === 0 ? "first_frame" : "last_frame" : "reference_image" });
-    for (const [index, video] of videos.entries()) content.push({ type: "video_url", video_url: { url: await referenceSource(video, "video", channel, signal, progress, profile.referenceMediaTransport?.video, links[`video:${index}`]) }, role: "reference_video" });
-    for (const [index, audio] of audios.entries()) content.push({ type: "audio_url", audio_url: { url: await referenceSource(audio, "audio", channel, signal, progress, profile.referenceMediaTransport?.audio, links[`audio:${index}`]) }, role: "reference_audio" });
+    const prompt = [mode?.promptPrefix, options.prompt.trim()].filter(Boolean).join("\n");
+    if (prompt) content.push({ type: "text", text: prompt });
+    for (const { image, index, role } of imageInputs) content.push({ type: "image_url", image_url: { url: await referenceSource(image, "image", channel, signal, progress, channel.referenceMediaTransport?.image, links[`image:${index}`]) }, role });
+    for (const [index, video] of videos.entries()) content.push({ type: "video_url", video_url: { url: await referenceSource(video, "video", channel, signal, progress, channel.referenceMediaTransport?.video, links[`video:${index}`]) }, role: "reference_video" });
+    for (const [index, audio] of audios.entries()) content.push({ type: "audio_url", audio_url: { url: await referenceSource(audio, "audio", channel, signal, progress, channel.referenceMediaTransport?.audio, links[`audio:${index}`]) }, role: "reference_audio" });
     if (!content.length) throw new Error("请填写提示词或添加参考素材");
-    const ratio = definition.family === "seedance25" && ["image_to_video", "extend", "inpaint"].includes(operation) ? "adaptive" : normalizeSeedanceRatio(config.size);
-    const body: Record<string, unknown> = { model, content, resolution: wireResolution, ratio, duration: operation === "inpaint" ? -1 : Number(config.videoSeconds), watermark: config.videoWatermark === "true" };
-    if (capabilities.generateAudio.supported) body.generate_audio = config.videoGenerateAudio === "true";
-    if (definition.family === "seedance25" && ["extend", "inpaint"].includes(operation)) body.omni_reference_task_type = operation === "extend" ? "extend" : "edit";
-    for (const key of ["return_last_frame", "seed", "camera_fixed", "service_tier", "priority", "execution_expires_after", "safety_identifier", "draft", "output_format", "tools"]) if (extra[key] !== undefined) body[key] = extra[key];
-    if (body.draft && definition.family !== "seedance25") throw new Error("当前模型不支持样片模式");
-    if (body.draft) body.resolution = "480p";
+    const ratio = resolveVideoRatioValue(capabilities, normalizeSeedanceRatio(effectiveConfig.size));
+    const body: Record<string, unknown> = { model, content, resolution: wireResolution, ratio, ...extra };
+    if (parameters?.common.some(field => field.key === "videoSeconds" && !field.hidden)) body.duration = Number(effectiveConfig.videoSeconds);
+    if (capabilities.watermark.supported) body.watermark = effectiveConfig.videoWatermark === "true";
+    if (capabilities.generateAudio.supported) body.generate_audio = effectiveConfig.videoGenerateAudio === "true";
     if (new Blob([JSON.stringify(body)]).size > 64 * 1024 * 1024) throw new Error("视频请求超过 64 MiB，请减少参考素材");
     return body;
 }
@@ -175,11 +189,12 @@ export const arkVideoProvider = {
         return task.id;
     },
     async query(channel: ModelChannel, id: string, signal?: AbortSignal): Promise<VideoProviderObservation> {
-        const task = await createChannelTransport(channel, "video").get<{ id: string; status: string; error?: { code?: string; message?: string }; content?: { video_url?: string; last_frame_url?: string }; duration?: number }>(buildApiUrl(channel.baseUrl, `/contents/generations/tasks/${encodeURIComponent(id)}`), { signal, timeout_ms: 20_000, validate_payload: false });
+        const task = await createChannelTransport(channel, "video").get<{ id: string; status: string; error?: { code?: string; message?: string }; content?: { video_url?: string; last_frame_url?: string }; output_format?: "mp4" | "mov"; duration?: number }>(buildApiUrl(channel.baseUrl, `/contents/generations/tasks/${encodeURIComponent(id)}`), { signal, timeout_ms: 20_000, validate_payload: false });
         if (task.id !== id) throw new Error("方舟返回的任务 ID 与查询任务不一致");
         const status = task.status === "expired" ? "failed" : task.status;
         if (!["queued", "running", "succeeded", "failed", "cancelled"].includes(status)) throw new Error(`未知方舟任务状态：${task.status}`);
-        return { id: task.id, status: status as VideoProviderObservation["status"], video_url: task.content?.video_url, last_frame_url: task.content?.last_frame_url, duration_ms: task.duration ? task.duration * 1000 : undefined, error: task.error?.message || (task.status === "expired" ? "方舟任务已过期" : undefined), error_code: task.error?.code };
+        // 使用查询结果中的实际容器格式；不支持 output_format 的旧型号固定输出 MP4。
+        return { id: task.id, status: status as VideoProviderObservation["status"], video_url: task.content?.video_url, last_frame_url: task.content?.last_frame_url, mime_type: task.output_format === "mov" ? "video/quicktime" : "video/mp4", duration_ms: task.duration ? task.duration * 1000 : undefined, error: task.error?.message || (task.status === "expired" ? "方舟任务已过期" : undefined), error_code: task.error?.code };
     },
     cancel(channel: ModelChannel, id: string) {
         return createChannelTransport(channel, "video").delete(buildApiUrl(channel.baseUrl, `/contents/generations/tasks/${encodeURIComponent(id)}`), { timeout_ms: 20_000 });

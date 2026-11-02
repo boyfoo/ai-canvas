@@ -1,10 +1,11 @@
-import { type ReactNode } from "react";
 import type { VideoSettingsConstraints } from "@/lib/video-settings-constraints";
-import { Switch } from "@/components/ui/base/switch";
+import { CanvasParameterGroup as SettingGroup, CanvasParameterOption as OptionPill, CanvasParameterSwitch as SwitchRow } from "@/components/generation-parameter-fields";
+import { videoGenerationSettings } from "@/lib/generation-parameters";
+import type { GenerationParameterInput } from "@/lib/generation-parameter-types";
 
 import { ImageSettingsTheme } from "@/components/image-settings-panel";
 import { boolConfig, isSeedanceVideoConfig, normalizeSeedanceDuration, normalizeSeedanceRatio, normalizeSeedanceResolution, seedanceRatioOptions } from "@/lib/seedance-video";
-import { isVolcengineArkVideoProtocol } from "@/lib/model-protocols";
+import { channelSupportsPrivateAssetSync } from "@/lib/model-service-presets";
 import { type CanvasTheme } from "@/lib/canvas-theme";
 import { formatVideoResolutionLabel, isVideoResolutionMatch, normalizeVideoDuration, sortVideoResolutionOptions, videoDimensionsForRatioAndResolution, VIDEO_DURATION_MIN } from "@/lib/video-generation-options";
 import { modelCapabilityConfigFor, normalizeVideoValue, resolveVideoRatioValue, resolveVideoResolutionValue, VIDEO_CAPABILITIES_UNAVAILABLE, videoDurationOptions, videoSupportsTaskTypeConstraints, type VideoCapabilityConfig } from "@/lib/model-capabilities";
@@ -21,6 +22,7 @@ const sizeOptions = [
 
 type VideoSettingsPanelProps = {
     taskConstraints?: VideoSettingsConstraints;
+    parameterInput?: GenerationParameterInput;
     config: AiConfig;
     onConfigChange: (key: "vquality" | "size" | "videoSeconds" | "videoGenerateAudio" | "videoWatermark" | "videoArkPrivateAssetUpload", value: string) => void;
     theme: CanvasTheme;
@@ -28,9 +30,15 @@ type VideoSettingsPanelProps = {
     className?: string;
 };
 
-export function VideoSettingsPanel({ config, onConfigChange, theme, showTitle = true, className = "w-[292px] space-y-3", taskConstraints }: VideoSettingsPanelProps) {
+export function VideoSettingsPanel({ config: originalConfig, onConfigChange, theme, showTitle = true, className = "w-[292px] space-y-3", taskConstraints: originalConstraints, parameterInput }: VideoSettingsPanelProps) {
+    const { config, profile, parameters } = videoGenerationSettings(originalConfig, parameterInput);
+    const ratioField = parameters?.common.find(field => field.key === "size");
+    const durationField = parameters?.common.find(field => field.key === "videoSeconds");
+    const taskConstraints = { ...originalConstraints,
+        ...(ratioField?.forcedValue !== undefined ? { ratioLabel: ratioField.options?.[0]?.label || String(ratioField.forcedValue) } : {}),
+        ...(durationField?.forcedValue !== undefined ? { durationLocked: true, durationLabel: durationField.summary?.(durationField.forcedValue) || "随原视频" } : {}),
+    };
     const capabilityConfig = modelCapabilityConfigFor(config, config.model);
-    const profile = capabilityConfig.video!;
     if (capabilityConfig.videoCapabilitiesUnavailable) return <p className={className} style={{ color: theme.node.muted }}>{VIDEO_CAPABILITIES_UNAVAILABLE}</p>;
     const serverOwned = Boolean(resolveModelChannel(config, config.model).modelProfiles?.find((item) => item.model === modelOptionName(config.model))?.videoCapabilitiesVersion?.trim());
     if (!serverOwned && resolveModelRequestConfig(config, config.model).interfaceType === "volcengine-jimeng-video") {
@@ -99,7 +107,7 @@ export function VideoSettingsPanel({ config, onConfigChange, theme, showTitle = 
                     </SettingGroup>
                 ) : null}
                 {profile.durationSupported !== false ? <SettingGroup title="秒数" color={theme.node.muted}>
-                    {taskConstraints?.durationLocked ? <p className="text-sm">随原视频</p> : <VideoDurationControl profile={profile} value={Number(seconds)} theme={theme} onChange={(value) => onConfigChange("videoSeconds", String(value))} />}
+                    {taskConstraints?.durationLocked ? <p className="text-sm">{taskConstraints.durationLabel || "随原视频"}</p> : <VideoDurationControl profile={profile} value={Number(seconds)} theme={theme} onChange={(value) => onConfigChange("videoSeconds", String(value))} />}
                 </SettingGroup> : null}
                 {profile.generateAudio.supported || profile.watermark.supported ? (
                     <SettingGroup title="输出" color={theme.node.muted}>
@@ -120,6 +128,7 @@ function JiMengVideoSettingsPanel({ config, profile, onConfigChange, theme, show
         <ImageSettingsTheme theme={theme}>
             <div className={className} style={{ color: theme.node.text }} onMouseDown={(event) => event.stopPropagation()}>
                 {showTitle ? <div className="text-sm font-semibold">视频设置</div> : null}
+                {profile.ratios.length > 0 ? (
                 <SettingGroup title="比例" color={theme.node.muted}>
                     <div className="grid grid-cols-3 gap-1.5">
                         {profile.ratios.map((value) => (
@@ -129,9 +138,12 @@ function JiMengVideoSettingsPanel({ config, profile, onConfigChange, theme, show
                         ))}
                     </div>
                 </SettingGroup>
+                ) : null}
+                {profile.durationSupported !== false ? (
                 <SettingGroup title="秒数" color={theme.node.muted}>
                     <VideoDurationControl profile={profile} value={Number(seconds)} theme={theme} onChange={(value) => onConfigChange("videoSeconds", String(value))} />
                 </SettingGroup>
+                ) : null}
             </div>
         </ImageSettingsTheme>
     );
@@ -140,12 +152,12 @@ function JiMengVideoSettingsPanel({ config, profile, onConfigChange, theme, show
 function SeedanceVideoSettingsPanel({ config, profile, onConfigChange, theme, showTitle, className, taskConstraints }: VideoSettingsPanelProps & { profile: VideoCapabilityConfig }) {
     const model = modelOptionName(config.model || config.videoModel);
     const resolution = normalizeSeedanceResolution(config.vquality, model);
-    const ratio = taskConstraints?.ratioLabel ? "adaptive" : normalizeSeedanceRatio(config.size);
+    const ratio = taskConstraints?.ratioLabel ? "adaptive" : resolveVideoRatioValue(profile, normalizeSeedanceRatio(config.size));
     const duration = normalizeSeedanceDuration(config.videoSeconds);
     const generateAudio = boolConfig(config.videoGenerateAudio, profile.generateAudio.default);
     const watermark = boolConfig(config.videoWatermark, profile.watermark.default);
     const useArkPrivateAssets = boolConfig(config.videoArkPrivateAssetUpload, true);
-    const isArkSeedance = isVolcengineArkVideoProtocol(resolveModelRequestConfig(config, config.model).interfaceType);
+    const canSyncPrivateAssets = channelSupportsPrivateAssetSync(resolveModelChannel(config, config.model), model);
 
     return (
         <ImageSettingsTheme theme={theme}>
@@ -156,6 +168,7 @@ function SeedanceVideoSettingsPanel({ config, profile, onConfigChange, theme, sh
                         首尾帧和延长模式的比例跟随素材；编辑模式还会跟随原视频时长。需要自由设置时，请选择参考生成。
                     </p>
                 ) : null}
+                {profile.resolutions.length > 0 ? (
                 <SettingGroup title="分辨率" color={theme.node.muted}>
                     <div className="grid grid-cols-3 gap-1.5">
                         {sortVideoResolutionOptions(profile.resolutions).map((value) => {
@@ -168,15 +181,21 @@ function SeedanceVideoSettingsPanel({ config, profile, onConfigChange, theme, sh
                         })}
                     </div>
                 </SettingGroup>
+                ) : null}
+                {profile.ratios.length > 0 ? (
                 <SettingGroup title="比例" color={theme.node.muted}>
+                    {taskConstraints?.ratioLabel ? (
+                        <div className="flex min-h-8 w-fit max-w-full items-center justify-center rounded-md px-3 py-1.5 text-center text-[var(--fs-tiny)] font-medium leading-5 [overflow-wrap:anywhere]" style={{ background: theme.toolbar.itemHover }}>
+                            {taskConstraints.ratioLabel}
+                        </div>
+                    ) : (
                     <div className="grid grid-cols-4 gap-1.5">
-                        {(taskConstraints?.ratioLabel ? ["adaptive"] : profile.ratios).map((value) => {
-                            const item = { value, label: taskConstraints?.ratioLabel || value };
+                        {profile.ratios.map((value) => {
+                            const item = { value, label: value };
                             return (
                                 <button
                                     key={item.value}
                                     type="button"
-                                    disabled={Boolean(taskConstraints?.ratioLabel)}
                                     className="flex h-11 min-w-0 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-md px-1 text-[var(--fs-tiny)] font-medium leading-none transition-colors hover:brightness-110 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1"
                                     style={{ background: ratio === item.value ? theme.toolbar.activeBg : "transparent", color: theme.node.text, outlineColor: theme.node.muted }}
                                     onMouseDown={(event) => event.stopPropagation()}
@@ -190,17 +209,23 @@ function SeedanceVideoSettingsPanel({ config, profile, onConfigChange, theme, sh
                             );
                         })}
                     </div>
+                    )}
                 </SettingGroup>
+                ) : null}
+                {profile.durationSupported !== false ? (
                 <SettingGroup title="时长" color={theme.node.muted}>
-                    {taskConstraints?.durationLocked ? <p className="text-sm">随原视频</p> : <VideoDurationControl profile={profile} value={duration} theme={theme} onChange={(value) => onConfigChange("videoSeconds", String(value))} />}
+                    {taskConstraints?.durationLocked ? <p className="text-sm">{taskConstraints.durationLabel || "随原视频"}</p> : <VideoDurationControl profile={profile} value={duration} theme={theme} onChange={(value) => onConfigChange("videoSeconds", String(value))} />}
                 </SettingGroup>
+                ) : null}
+                {profile.generateAudio.supported || profile.watermark.supported ? (
                 <SettingGroup title="输出" color={theme.node.muted}>
                     <div className="grid grid-cols-2 gap-3 rounded-md px-2" style={{ background: theme.toolbar.itemHover }}>
                         {profile.generateAudio.supported ? <SwitchRow label="生成声音" checked={generateAudio} theme={theme} onChange={(checked) => onConfigChange("videoGenerateAudio", String(checked))} /> : null}
                         {profile.watermark.supported ? <SwitchRow label="添加水印" checked={watermark} theme={theme} onChange={(checked) => onConfigChange("videoWatermark", String(checked))} /> : null}
                     </div>
                 </SettingGroup>
-                {isArkSeedance ? (
+                ) : null}
+                {canSyncPrivateAssets ? (
                     <SettingGroup title="参考图" color={theme.node.muted}>
                         <div className="rounded-md px-2" style={{ background: theme.toolbar.itemHover }}>
                             <SwitchRow label="自动同步可信素材（确认拥有使用权）" checked={useArkPrivateAssets} theme={theme} onChange={(checked) => onConfigChange("videoArkPrivateAssetUpload", String(checked))} />
@@ -235,33 +260,6 @@ export function normalizeVideoSizeValue(value: string) {
     if (value === "auto") return "auto";
     if (/^\d+x\d+$/.test(value || "")) return value;
     return ["9:16", "2:3", "3:4"].includes(value) ? "720x1280" : "1280x720";
-}
-
-function OptionPill({ selected, disabled = false, theme, onClick, children }: { selected: boolean; disabled?: boolean; theme: CanvasTheme; onClick: () => void; children: ReactNode }) {
-    return (
-        <button
-            type="button"
-            disabled={disabled}
-            aria-pressed={selected}
-            className="h-8 cursor-pointer whitespace-nowrap rounded-md px-1 text-[var(--fs-label)] font-medium leading-none transition-colors hover:brightness-110 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1 disabled:cursor-not-allowed disabled:opacity-35"
-            style={{ background: selected ? theme.toolbar.activeBg : "transparent", color: theme.node.text, outlineColor: theme.node.muted }}
-            onMouseDown={(event) => event.stopPropagation()}
-            onClick={onClick}
-        >
-            {children}
-        </button>
-    );
-}
-
-function SettingGroup({ title, color, children }: { title: string; color: string; children: ReactNode }) {
-    return (
-        <div className="space-y-1.5">
-            <div className="text-[var(--fs-tiny)] font-semibold" style={{ color }}>
-                {title}
-            </div>
-            {children}
-        </div>
-    );
 }
 
 function DimensionValue({ prefix, value, theme }: { prefix: string; value: number; theme: CanvasTheme }) {
@@ -317,8 +315,13 @@ function VideoDurationControl({ profile, value, theme, disabled, onChange }: { p
         const normalized = profile.duration.continuous
             ? Math.max(min, Math.min(max, Number.isFinite(value) ? value : profile.duration.default))
             : normalizeDurationValue(value, profile.duration.default, min, max, step);
-        return (
-            <DurationRangeControl
+        const automatic = profile.duration.values?.includes(-1);
+        return (<>
+            {automatic ? <div className="grid grid-cols-2 gap-1.5">
+                <OptionPill selected={value === -1} theme={theme} onClick={() => onChange(-1)}>自动</OptionPill>
+                <OptionPill selected={value !== -1} theme={theme} onClick={() => onChange(normalized)}>指定秒数</OptionPill>
+            </div> : null}
+            {value !== -1 || !automatic ? <DurationRangeControl
                 value={normalized}
                 min={min}
                 max={max}
@@ -328,8 +331,8 @@ function VideoDurationControl({ profile, value, theme, disabled, onChange }: { p
                 onChange={(next) => {
                     if (!disabled?.(next)) onChange(next);
                 }}
-            />
-        );
+            /> : null}
+        </>);
     }
 
     const options = videoDurationOptions(profile);
@@ -397,17 +400,4 @@ function ratioPreview(ratio: string) {
     if (ratio === "21:9") return { width: 21, height: 9 };
     if (ratio === "adaptive") return { width: 0, height: 0 };
     return { width: 16, height: 9 };
-}
-
-function SwitchRow({ label, checked, theme, onChange }: { label: string; checked: boolean; theme: CanvasTheme; onChange: (checked: boolean) => void }) {
-    return (
-        <div className="flex h-8 items-center justify-between gap-2">
-            <span className="min-w-0 whitespace-nowrap text-[var(--fs-label)]" style={{ color: theme.node.text }}>
-                {label}
-            </span>
-            <span className="shrink-0" onMouseDown={(event) => event.stopPropagation()}>
-                <Switch size="sm" checked={checked} onChange={onChange} />
-            </span>
-        </div>
-    );
 }

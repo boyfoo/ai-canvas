@@ -1,3 +1,4 @@
+import { CanvasProviderParameterFields } from "@/components/generation-parameter-fields";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { Settings2 } from "lucide-react";
@@ -13,6 +14,7 @@ import { seedreamFamily } from "@/lib/seedream-image";
 
 type CanvasImageSettingsPopoverProps = {
     config: AiConfig;
+    onProviderOptionsChange?: (value: NonNullable<AiConfig["providerOptions"]>) => void;
     onConfigChange: (key: keyof AiConfig, value: string) => void;
     onMissingConfig?: () => void;
     onOpenChange?: (open: boolean) => void;
@@ -24,7 +26,7 @@ type CanvasImageSettingsPopoverProps = {
     summaryOverride?: string;
 };
 
-export function CanvasImageSettingsPopover({ config, onConfigChange, onOpenChange, buttonClassName, placement = "topLeft", showCount = true, summaryOverride }: CanvasImageSettingsPopoverProps) {
+export function CanvasImageSettingsPopover({ config, onProviderOptionsChange, onConfigChange, onOpenChange, buttonClassName, placement = "topLeft", showCount = true, summaryOverride }: CanvasImageSettingsPopoverProps) {
     const theme = canvasThemes[useActiveTheme()];
     const buttonRef = useRef<HTMLSpanElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
@@ -71,7 +73,7 @@ export function CanvasImageSettingsPopover({ config, onConfigChange, onOpenChang
         };
     }, [onOpenChange, open]);
 
-    const panel = open && buttonRect ? <ImageSettingsPortal layer={canvasPopoverLayer(buttonRef.current)} buttonRect={buttonRect} panelRef={panelRef} placement={placement} theme={theme} config={config} showCount={showCount} onConfigChange={onConfigChange} /> : null;
+    const panel = open && buttonRect ? <ImageSettingsPortal layer={canvasPopoverLayer(buttonRef.current)} buttonRect={buttonRect} panelRef={panelRef} placement={placement} theme={theme} config={config} showCount={showCount} onConfigChange={onConfigChange} onProviderOptionsChange={onProviderOptionsChange} /> : null;
 
     if (!hasSettings) return null;
 
@@ -96,6 +98,7 @@ function ImageSettingsPortal({
     config,
     showCount,
     onConfigChange,
+    onProviderOptionsChange,
 }: {
     layer: number | string;
     buttonRect: DOMRect;
@@ -103,6 +106,7 @@ function ImageSettingsPortal({
     placement: CanvasImageSettingsPopoverProps["placement"];
     theme: (typeof canvasThemes)[keyof typeof canvasThemes];
     config: AiConfig;
+    onProviderOptionsChange?: (value: NonNullable<AiConfig["providerOptions"]>) => void;
     showCount: boolean;
     onConfigChange: (key: keyof AiConfig, value: string) => void;
 }) {
@@ -138,6 +142,7 @@ function ImageSettingsPortal({
             onClick={(event) => event.stopPropagation()}
         >
             <ImageSettingsPanel config={config} onConfigChange={(key, value) => onConfigChange(key, value)} theme={theme} showCount={showCount} quickCount={3} className="space-y-3" />
+            {onProviderOptionsChange ? <CanvasProviderParameterFields config={config} theme={theme} onChange={onProviderOptionsChange} /> : null}
         </div>,
         document.body,
     );

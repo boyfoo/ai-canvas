@@ -9,7 +9,7 @@ import { NODE_DEFAULT_SIZE } from "@/constant/canvas";
 import { isH3Model, h3VideoOperation, h3ResolvedReferenceOrder } from "@/lib/h3-video";
 import { isSeedanceVideoConfig } from "@/lib/seedance-video";
 import { modelCapabilityConfigFor } from "@/lib/model-capabilities";
-import { resolveVideoOperation } from "@/lib/model-selection";
+import { resolveVideoOperation, providerVideoOperations } from "@/lib/generation-operations";
 import { imageMetadata } from "@/lib/canvas/canvas-generation-task-sync";
 import { ensureMediaNodeMinimumSize } from "@/lib/canvas/canvas-node-size";
 import { repairOverlappingImageBatches } from "@/lib/canvas/canvas-generation-layout";
@@ -427,6 +427,7 @@ function resolveVideoEditOperation(
         referenceVideos: ReferenceVideo[];
         referenceAudios: ReferenceAudio[];
     },
+    config?: AiConfig,
 ): CanvasVideoEditOperation {
     const storedOperation = node?.metadata?.videoEditOperation;
     const input = {
@@ -436,7 +437,7 @@ function resolveVideoEditOperation(
         audioCount: context?.referenceAudios.length || 0,
         characterCount: 0,
     };
-    return resolveVideoOperation(input, storedOperation) as CanvasVideoEditOperation;
+    return resolveVideoOperation(input, storedOperation, config) as CanvasVideoEditOperation;
 }
 
 export function buildVideoGenerationMetadata(
@@ -451,22 +452,23 @@ export function buildVideoGenerationMetadata(
     const metadata = node?.metadata;
     const referenceImageIds = new Set((context?.referenceImages || []).map((image) => image.id));
     // 工作流视频把已连接媒体交给字段映射处理，不再把历史首尾帧选择当成硬约束。
-    // 工作流视频把已连接媒体交给字段映射处理，不再把历史首尾帧选择当成硬约束。
     const workflowVideo = node?.type === CanvasNodeType.Config && (config?.taskWorkflowProvider === "runninghub" || isCanvasWorkflowProvider(metadata));
-    const startFrame = workflowVideo ? undefined : requireConnectedVideoFrame(metadata?.videoStartFrameNodeId, "首帧", referenceImageIds);
-    const endFrame = workflowVideo ? undefined : requireConnectedVideoFrame(metadata?.videoEndFrameNodeId, "尾帧", referenceImageIds);
+    const operation = config && isH3Model(config.model)
+        ? h3VideoOperation(config.model, { imageCount: context?.referenceImages.length || 0, videoCount: context?.referenceVideos.length || 0, audioCount: context?.referenceAudios.length || 0 }, metadata?.videoEditOperation)
+        : resolveVideoEditOperation(node, context, config);
+    const mode = config ? providerVideoOperations(config)?.find(item => item.value === operation) : undefined;
+    const useFrames = !workflowVideo && (!mode || mode.referenceMode === "frames");
+    const startFrame = useFrames ? requireConnectedVideoFrame(metadata?.videoStartFrameNodeId, "首帧", referenceImageIds) : undefined;
+    const endFrame = useFrames && mode?.frameCount !== 1 ? requireConnectedVideoFrame(metadata?.videoEndFrameNodeId, "尾帧", referenceImageIds) : undefined;
     return {
         ...(config ? generationWorkflowMetadata(config) : {}),
-        videoEditOperation:
-            config && isH3Model(config.model)
-                ? h3VideoOperation(config.model, { imageCount: context?.referenceImages.length || 0, videoCount: context?.referenceVideos.length || 0, audioCount: context?.referenceAudios.length || 0 }, metadata?.videoEditOperation)
-                : resolveVideoEditOperation(node, context),
+        videoEditOperation: operation,
         videoCameraMoveId: metadata?.videoCameraMoveId,
         videoCameraMovePrompt: metadata?.videoCameraMovePrompt,
         videoStartFrameNodeId: startFrame,
         videoEndFrameNodeId: endFrame,
-        videoMiddleFrameNodeId: metadata?.videoMiddleFrameNodeId ? requireConnectedVideoFrame(metadata.videoMiddleFrameNodeId, "中间帧", referenceImageIds) : undefined,
-        videoMiddleFrameTime: metadata?.videoMiddleFrameTime,
+        videoMiddleFrameNodeId: !mode && metadata?.videoMiddleFrameNodeId ? requireConnectedVideoFrame(metadata.videoMiddleFrameNodeId, "中间帧", referenceImageIds) : undefined,
+        videoMiddleFrameTime: mode ? undefined : metadata?.videoMiddleFrameTime,
         videoH3Options: metadata?.videoH3Options,
         videoReferenceOrder: config && isH3Model(config.model) ? h3ResolvedReferenceOrder(metadata?.videoReferenceOrder, [...(context?.referenceImages || []), ...(context?.referenceVideos || []), ...(context?.referenceAudios || [])]) : metadata?.videoReferenceOrder,
     };

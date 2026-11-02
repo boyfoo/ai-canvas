@@ -10,7 +10,7 @@ import { modelCapabilityConfigFor, normalizeImageValue, type ImageCapabilityConf
 import { mergedImageCapabilityConfig } from "@/lib/model-selection";
 import { type AiConfig } from "@/stores/use-config-store";
 import { seedreamFamily } from "@/lib/seedream-image";
-import { SeedreamSettings } from "./seedream-settings";
+import { SeedreamSettings, SeedreamSizeSettings } from "./seedream-settings";
 
 const qualityOptions = [
     { value: "auto", label: "自动" },
@@ -54,12 +54,13 @@ type ImageSettingsPanelProps = {
     showTransparent?: boolean;
     showSize?: boolean;
     showCount?: boolean;
+    showSeedreamOptions?: boolean;
     className?: string;
     maxCount?: number;
     quickCount?: number;
 };
 
-export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = true, showQuality = true, showTransparent = true, showSize = true, showCount = true, className = "w-[304px] space-y-3 rounded-2xl px-1 py-0.5", maxCount = 15, quickCount = 3 }: ImageSettingsPanelProps) {
+export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = true, showQuality = true, showTransparent = true, showSize = true, showCount = true, showSeedreamOptions = true, className = "w-[304px] space-y-3 rounded-2xl px-1 py-0.5", maxCount = 15, quickCount = 3 }: ImageSettingsPanelProps) {
     const profile = mergedImageCapabilityConfig(config, config.model || config.imageModel);
     const seedream = seedreamFamily(config.model || config.imageModel);
     const normalized = normalizeImageValue(profile, config);
@@ -83,7 +84,7 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                 }}
             >
                 {showTitle ? <div className="text-base font-semibold">图像设置</div> : null}
-                {showQuality && profile.quality.supported && !imageResolutionUsesQuality(profile) ? <div className="space-y-2">
+                {showQuality && profile.quality.supported && activeQualityOptions.length > 0 && !imageResolutionUsesQuality(profile) ? <div className="space-y-2">
                     <SettingTitle color={theme.node.muted}>{isGrokResolutionQuality(profile) ? "分辨率" : "质量"}</SettingTitle>
                     <div className={`grid gap-1.5 ${activeQualityOptions.length <= 2 ? "grid-cols-2" : "grid-cols-4"}`}>
 						{activeQualityOptions.map((item) => (
@@ -108,7 +109,7 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                         />
                     </span>
                 </div> : null}
-                {seedream ? <SeedreamSettings config={config} family={seedream} profile={profile} onChange={onConfigChange} theme={theme} /> : showSize ? <ImageSizePicker profile={profile} size={activeSize} quality={quality} onChange={(size, nextQuality) => applyImageSizeSelection(onConfigChange, size, nextQuality)} /> : null}
+                {seedream ? (showSeedreamOptions ? <SeedreamSettings config={config} family={seedream} profile={profile} onChange={onConfigChange} theme={theme} showSize={showSize && profile.size.parameter !== "none"} /> : showSize && profile.size.parameter !== "none" ? <SeedreamSizeSettings config={config} profile={profile} onChange={onConfigChange} theme={theme} /> : null) : showSize && profile.size.parameter !== "none" ? <ImageSizePicker profile={profile} size={activeSize} quality={quality} onChange={(size, nextQuality) => applyImageSizeSelection(onConfigChange, size, nextQuality)} /> : null}
                 {showCount && profile.fixedOutputs ? (
                     <div className="space-y-2">
                         <SettingTitle color={theme.node.muted}>{seedream ? "生成批次" : "生成张数"}</SettingTitle>

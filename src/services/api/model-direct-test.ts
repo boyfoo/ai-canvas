@@ -1,4 +1,4 @@
-import { modelCatalogRequestURL, servicePresetFor } from "@/lib/model-service-presets";
+import { modelCatalogRequestURL, modelProviderDefinition } from "@/lib/model-service-presets";
 import { channelRequest } from "@/services/api/channel-request";
 import { buildApiUrl, type ModelChannel } from "@/stores/use-config-store";
 
@@ -15,8 +15,9 @@ export type DirectTestResult = {
 };
 
 export function defaultModelDirectTestRequest(channel: ModelChannel): DirectTestRequest {
+    const provider = modelProviderDefinition(channel);
     return {
-        url: ["ark", "ark-video"].includes(servicePresetFor(channel)) ? buildApiUrl(channel.baseUrl, "/contents/generations/tasks") : modelCatalogRequestURL(channel),
+        url: provider.diagnosticPath ? buildApiUrl(channel.baseUrl, provider.diagnosticPath) : modelCatalogRequestURL(channel),
         method: "GET",
         body: "{}",
     };

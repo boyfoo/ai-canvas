@@ -1,18 +1,38 @@
 import type { ModelChannel, ModelCapability } from "@/stores/use-config-store";
 import { buildApiUrl } from "@/stores/use-config-store";
 import { defaultModelCapabilityConfig } from "@/lib/model-capabilities";
-import { inferProtocolCapabilityFromModel, type ModelProtocolDefinition } from "@/lib/model-protocols";
+import { inferProtocolCapabilityFromModel, isVolcengineArkVideoProtocol, type ModelProtocolDefinition } from "@/lib/model-protocols";
+import { hasCanvasBackend } from "@/lib/canvas-host-config";
 import { catalogEndpointCapability, type ChannelModelCatalogItem } from "@/lib/channel-model-catalog";
 import { serviceCredentialGuide } from "@/lib/service-credentials";
-import { arkVideoModelProfile } from "@/lib/ark-video-models";
+import { ARK_VIDEO_MODELS, arkVideoModelCatalog, arkVideoModelProfile } from "@/lib/ark-video-models";
 
-export const MODEL_SERVICE_PRESETS = [
-    { id: "compatible", name: "第三方模型服务", subtitle: "OpenAI 兼容 API · 中转服务", icon: "OpenAI", baseUrl: "", apiFormat: "openai" },
-    { id: "openai", name: "OpenAI", subtitle: "文本 · 图片（Sora 已停用）", icon: "OpenAI", baseUrl: "https://api.openai.com/v1", apiFormat: "openai" },
-    { id: "gemini", name: "Google Gemini", subtitle: "文本 · 图片（Veo 已停用）", icon: "Gemini", baseUrl: "https://generativelanguage.googleapis.com", apiFormat: "gemini" },
-    { id: "ark", name: "火山方舟", subtitle: "文本 · 即梦图片 · Seedance 视频", icon: "Volcengine", baseUrl: "https://ark.cn-beijing.volces.com/api/v3", apiFormat: "openai" },
-    { id: "ark-video", name: "火山方舟(视频版)", subtitle: "Seedance 视频 · 浏览器直连", icon: "Volcengine", baseUrl: "https://ark.cn-beijing.volces.com/api/v3", apiFormat: "openai" },
-] as const;
+export type ProviderDefinition = {
+    id: "compatible" | "openai" | "gemini" | "ark" | "ark-video";
+    name: string;
+    subtitle: string;
+    icon: string;
+    baseUrl: string;
+    apiFormat: ModelChannel["apiFormat"];
+    catalogSource: "remote" | "preset";
+    generationExecution: "browser" | "task-service";
+    protocols: Partial<Record<ModelCapability, string>>;
+    fixedProtocol?: string;
+    families?: Array<{ value: string; label: string }>;
+    createProfile?: (model: string, family?: string) => NonNullable<ModelChannel["modelProfiles"]>[number];
+    filesAPI?: boolean;
+    privateAssets?: boolean;
+    presetCatalog?: () => ChannelModelCatalogItem[];
+    diagnosticPath?: string;
+};
+
+export const MODEL_SERVICE_PRESETS: ProviderDefinition[] = [
+    { id: "compatible", name: "第三方模型服务", subtitle: "自定义兼容服务", icon: "OpenAI", baseUrl: "", apiFormat: "openai", catalogSource: "remote", generationExecution: "task-service", protocols: { text: "chat-completion", image: "openai-image", audio: "openai-audio" } },
+    { id: "openai", name: "OpenAI", subtitle: "文本 · 图片", icon: "OpenAI", baseUrl: "https://api.openai.com/v1", apiFormat: "openai", catalogSource: "remote", generationExecution: "task-service", protocols: { text: "openai-response", image: "openai-image", video: "newapi", audio: "openai-audio" } },
+    { id: "gemini", name: "Google Gemini", subtitle: "文本 · 图片", icon: "Gemini", baseUrl: "https://generativelanguage.googleapis.com", apiFormat: "gemini", catalogSource: "remote", generationExecution: "task-service", protocols: { text: "gemini-generate-content", image: "gemini-image", video: "gemini-veo" } },
+    { id: "ark", name: "火山方舟", subtitle: "文本 · 图片 · 视频", icon: "Volcengine", baseUrl: "https://ark.cn-beijing.volces.com/api/v3", apiFormat: "openai", catalogSource: "remote", generationExecution: "task-service", privateAssets: true, diagnosticPath: "/contents/generations/tasks", protocols: { text: "chat-completion", image: "volcengine-ark-image", video: "volcengine-ark-video" } },
+    { id: "ark-video", name: "火山方舟(视频版)", subtitle: "Seedance 视频 · 浏览器直连", icon: "Volcengine", baseUrl: "https://ark.cn-beijing.volces.com/api/v3", apiFormat: "openai", catalogSource: "preset", generationExecution: "browser", protocols: { video: "volcengine-ark-video" }, fixedProtocol: "volcengine-ark-video", families: ARK_VIDEO_MODELS.map(item => ({ value: item.family, label: item.name })), createProfile: arkVideoModelProfile, presetCatalog: arkVideoModelCatalog, filesAPI: true, diagnosticPath: "/contents/generations/tasks" },
+];
 export type ModelServicePresetId = typeof MODEL_SERVICE_PRESETS[number]["id"];
 export const CAPABILITY_LABELS: Record<ModelCapability, string> = { text: "文本", image: "图片", video: "视频", audio: "音频" };
 
@@ -31,10 +51,52 @@ export function servicePresetFor(channel: ModelChannel): ModelServicePresetId {
     return "compatible";
 }
 
+export function modelProviderDefinition(channel: ModelChannel): ProviderDefinition {
+    return MODEL_SERVICE_PRESETS.find(item => item.id === servicePresetFor(channel))!;
+}
+
+export function providerPresetModelProfile(channel: ModelChannel, model: string) {
+    const provider = modelProviderDefinition(channel);
+    return provider.createProfile && provider.presetCatalog?.().some(item => item.id === model) ? provider.createProfile(model) : undefined;
+}
+
+export function channelReferenceMediaKinds(channel: ModelChannel): Array<"image" | "video" | "audio"> {
+    const kinds = new Set<"image" | "video" | "audio">();
+    for (const profile of channel.modelProfiles || []) {
+        if (!channel.models.includes(profile.model) || !profile.protocol) continue;
+        if ((profile.videoCapabilitiesVersion || profile.imageCapabilitiesVersion) && !profile.capabilityConfig) continue;
+        const capabilities = profile.capabilityConfig || defaultModelCapabilityConfig(profile.protocol, profile.model);
+        const references = profile.capability === "video" ? capabilities.video?.references : profile.capability === "image" ? capabilities.image?.references : profile.capability === "text" ? capabilities.text?.references : undefined;
+        if (!references) continue;
+        if (references.maxImages > 0) kinds.add("image");
+        if ("maxVideos" in references && typeof references.maxVideos === "number" && references.maxVideos > 0) kinds.add("video");
+        if ("maxAudios" in references && typeof references.maxAudios === "number" && references.maxAudios > 0) kinds.add("audio");
+    }
+    return (["image", "video", "audio"] as const).filter(kind => kinds.has(kind));
+}
+
+export function channelSupportsReferenceAssetOrigin(channel: ModelChannel): boolean {
+    return modelProviderDefinition(channel).generationExecution === "task-service" && hasCanvasBackend() && channelReferenceMediaKinds(channel).length > 0;
+}
+
+export function channelSupportsPrivateAssetSync(channel: ModelChannel, model?: string): boolean {
+    const provider = modelProviderDefinition(channel);
+    if (!provider.privateAssets || provider.generationExecution !== "task-service" || !hasCanvasBackend()) return false;
+    return (channel.modelProfiles || []).some(profile => channel.models.includes(profile.model)
+        && (!model || profile.model === model) && profile.capability === "video" && isVolcengineArkVideoProtocol(profile.protocol)
+        && (profile.capabilityConfig?.video?.references.maxImages || 0) > 0);
+}
+
 // Endpoint metadata is a hint, only resolve to protocols the host actually offers.
 export function serviceModelProfile(channel: ModelChannel, item: ChannelModelCatalogItem, protocols: ModelProtocolDefinition[], explicitCapability?: ModelCapability): NonNullable<ModelChannel["modelProfiles"]>[number] {
     const existing = channel.modelProfiles?.find((profile) => profile.model === item.id);
-    if (channel.provider_id === "ark-video") return existing?.protocol === "volcengine-ark-video" ? existing : arkVideoModelProfile(item.id, existing?.provider_model_family);
+    const provider = modelProviderDefinition(channel);
+    if (provider.createProfile) {
+        const preset = providerPresetModelProfile(channel, item.id);
+        // 错配配置保留在编辑器中供用户显式修正；提交时仍拒绝，不在读取时改写数据。
+        if (existing && preset && existing.provider_model_family !== preset.provider_model_family) return existing;
+        return { ...existing, ...provider.createProfile(item.id, existing?.provider_model_family) };
+    }
     if (existing?.protocol && !explicitCapability) {
         const definition = protocols.find((protocol) => protocol.value === existing.protocol && protocol.enabled !== false);
         if (definition && definition.authType !== existing.authType) return { ...existing, authType: definition.authType };
@@ -43,17 +105,10 @@ export function serviceModelProfile(channel: ModelChannel, item: ChannelModelCat
     const fullvideoFull = ["sd-native-full-2.0", "sd-native-full-2.5", "原生不卡人脸-全参2.0", "原生不卡人脸-全参2.5"].includes(item.id);
     const capability = explicitCapability || existing?.capability || item.modelType || catalogEndpointCapability(item) || (fullvideoFull ? "video" : inferProtocolCapabilityFromModel(item.id));
     const preset = channel.apiFormat === "gemini" ? "gemini" : servicePresetFor(channel);
-    const candidates: Record<ModelServicePresetId, Partial<Record<ModelCapability, string>>> = {
-        compatible: { text: "chat-completion", image: "openai-image", audio: "openai-audio" },
-        openai: { text: "openai-response", image: "openai-image", video: "newapi" },
-        gemini: { text: "gemini-generate-content", image: "gemini-image", video: "gemini-veo" },
-        ark: { text: "chat-completion", image: "volcengine-ark-image", video: "volcengine-ark-video" },
-        "ark-video": { video: "volcengine-ark-video" },
-    };
     const endpoints: Record<string, string> = { "responses": "openai-response", "openai-responses": "openai-response", "chat.completions": "chat-completion", "chat-completions": "chat-completion", "images.generations": "openai-image", "image-generation": "openai-image", "audio.speech": "openai-audio", "openai-video": "newapi", "openai-videos": "newapi", "video-generations-json": "video-generations-json", "volcengine-ark-video": "volcengine-ark-video" };
     const endpoint = item.supportedEndpointTypes?.map((value) => endpoints[value.trim().toLowerCase()]).find((id) => protocols.some((p) => p.value === id && p.capability === capability && p.enabled !== false));
     const inherited = protocols.find((p) => p.value === channel.interfaceType && p.capability === capability && p.enabled !== false)?.value;
-    let proposed = inherited || endpoint || candidates[preset][capability];
+    let proposed = inherited || endpoint || MODEL_SERVICE_PRESETS.find(item => item.id === preset)?.protocols[capability];
     // Model names identify a family, not a provider's wire protocol. Ask the
     // user to select its contract unless the catalog explicitly declares it.
     if (fullvideoFull && capability === "video" && !inherited) proposed = item.supportedEndpointTypes?.includes("full-video") ? "full-video" : undefined;
@@ -76,7 +131,7 @@ export function channelAllowsEmptyAPIKey(channel: Pick<ModelChannel, "models" | 
 }
 
 export function serviceConnectionError(channel: ModelChannel, options?: { protocols?: ModelProtocolDefinition[]; requireCredential?: boolean }): string {
-    if (channel.referenceAssetOrigin?.trim()) {
+    if (channelSupportsReferenceAssetOrigin(channel) && channel.referenceAssetOrigin?.trim()) {
         try {
             const origin = new URL(channel.referenceAssetOrigin.trim());
             if (!["https:", "http:"].includes(origin.protocol) || origin.username || origin.password || origin.search || origin.hash || origin.pathname !== "/") return "素材服务地址只填写源站，不包含路径、账号或查询参数。公网请使用 HTTPS；本机、局域网或 CGNAT 可使用 HTTP 和端口";
@@ -108,5 +163,5 @@ export function modelCatalogRequestURL(channel: ModelChannel) {
 }
 
 export function modelCatalogSource(channel: Pick<ModelChannel, "provider_id">): "remote" | "preset" {
-    return channel.provider_id === "ark-video" ? "preset" : "remote";
+    return MODEL_SERVICE_PRESETS.find(item => item.id === channel.provider_id)?.catalogSource || "remote";
 }

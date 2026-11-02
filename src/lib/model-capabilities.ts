@@ -1,3 +1,5 @@
+import { arkVideoReferenceCapabilities as overlayOfficialSeedance2References } from "@/lib/providers/ark-video-capabilities";
+import { providerGenerationDefinition } from "@/lib/providers/generation-providers";
 import { isVolcengineArkVideoProtocol, modelProtocolCapability, type ModelProtocol, type ModelProtocolWorkflow } from "@/lib/model-protocols";
 import { beefAPIImageContract } from "@/lib/beefapi-image-contracts";
 import { seedreamFamily, seedreamImageCapability } from "@/lib/seedream-image";
@@ -116,6 +118,8 @@ export type VideoCapabilityConfig = {
     };
     durationSupported?: boolean;
     taskTypeConstraints?: boolean;
+    /** 参考生成可仅输入音频，无需单独展示音频生成模式。 */
+    audioOnlyInput?: boolean;
     ratios: string[];
     defaultRatio: string;
     resolutions: string[];
@@ -744,7 +748,7 @@ export function pluginWorkflowCapabilityConfig(protocol: ModelProtocol, workflow
 }
 
 export function modelCapabilityConfigFor(
-    config: { channels: Array<{ id: string; models: string[]; baseUrl?: string; credentialRef?: string; interfaceType?: ModelProtocol; modelProfiles?: Array<{ model: string; capability?: string; capabilityConfig?: ModelCapabilityConfig; protocol?: ModelProtocol; imageCapabilitiesVersion?: string; videoCapabilitiesVersion?: string }> }> },
+    config: { channels: Array<{ id: string; models: string[]; baseUrl?: string; credentialRef?: string; provider_id?: string; interfaceType?: ModelProtocol; modelProfiles?: Array<{ model: string; provider_model_family?: string; capability?: string; capabilityConfig?: ModelCapabilityConfig; protocol?: ModelProtocol; imageCapabilitiesVersion?: string; videoCapabilitiesVersion?: string }> }> },
     model: string,
 ): ModelCapabilityConfig {
     const separator = model.indexOf("::");
@@ -758,6 +762,8 @@ export function modelCapabilityConfigFor(
     // capability object while retaining the legacy entry as a fallback.
     const profile = channel?.modelProfiles?.find((item) => item.model === modelName && item.capabilityConfig && !Array.isArray(item.capabilityConfig)) || channel?.modelProfiles?.find((item) => item.model === modelName);
     const protocol = profile?.protocol || channel?.interfaceType;
+    const provider = providerGenerationDefinition(channel?.provider_id);
+    if (provider?.capabilities && profile) return provider.capabilities(defaultModelCapabilityConfig(protocol, modelName), modelName, profile.provider_model_family);
     if (profile?.imageCapabilitiesVersion && profile.capabilityConfig?.image) return structuredClone(profile.capabilityConfig);
     const sourcedVideo = versionedVideoCapability(profile?.capabilityConfig?.video, profile?.videoCapabilitiesVersion);
     if (sourcedVideo) return { ...defaultModelCapabilityConfig(), video: sourcedVideo };
@@ -860,38 +866,6 @@ export function tightenDocumentedOutputDuration(duration: VideoCapabilityConfig[
     const fallback = Math.max(minimum, duration.default);
     if (min === duration.min && fractionalMin === duration.fractionalMin && fallback === duration.default) return duration;
     return { ...duration, min, ...(duration.continuous ? { fractionalMin } : {}), default: fallback };
-}
-
-function overlayOfficialSeedance2References(base: VideoCapabilityConfig["references"], is25: boolean): VideoCapabilityConfig["references"] {
-    return {
-        ...base,
-        maxImages: is25 ? 30 : 9,
-        maxVideos: is25 ? 10 : 3,
-        maxVideoBytes: 200 * 1024 * 1024,
-        maxVideoDurationSeconds: is25 ? 30 : 15,
-        minVideoDurationSeconds: 2,
-        maxVideoTotalDurationSeconds: is25 ? 30 : 15,
-        maxAudios: is25 ? 10 : 3,
-        maxAudioBytes: 15 * 1024 * 1024,
-        maxAudioDurationSeconds: is25 ? 30 : 15,
-        minAudioDurationSeconds: 2,
-        maxAudioTotalDurationSeconds: is25 ? 30 : 15,
-        maxImageBytes: base.maxImageBytes || 30 * 1024 * 1024,
-        minImageWidth: 300,
-        maxImageWidth: 6000,
-        minImageHeight: 300,
-        maxImageHeight: 6000,
-        minImageAspect: 0.4,
-        maxImageAspect: 2.5,
-        minVideoWidth: 300,
-        maxVideoWidth: 6000,
-        minVideoHeight: 300,
-        maxVideoHeight: 6000,
-        minVideoAspect: 0.4,
-        maxVideoAspect: 2.5,
-        minVideoPixels: 409600,
-        maxVideoPixels: 8295044,
-    };
 }
 
 // 工作流字段是供应商参数的唯一事实来源；不能用普通视频模型的固定清晰度列表覆盖它。
@@ -1536,6 +1510,7 @@ export function videoResolutionRequest(profile: VideoCapabilityConfig, value: st
 }
 
 function normalizeRangeDuration(profile: VideoCapabilityConfig, value: number) {
+    if ((profile.duration.values || []).includes(value)) return value;
     const min = profile.duration.continuous ? profile.duration.fractionalMin || profile.duration.min || .92 : profile.duration.min || 1;
     const max = profile.duration.max || min;
     const step = profile.duration.step || 1;
@@ -1557,7 +1532,7 @@ export function videoDurationRequirement(duration: VideoCapabilityConfig["durati
     }
     const min = duration.continuous ? duration.fractionalMin ?? duration.min ?? 1 : duration.min || 1;
     const max = duration.max || min;
-    return `${min}–${max} 秒`;
+    return `${duration.values?.includes(-1) ? "自动 或 " : ""}${min}–${max} 秒`;
 }
 
 export function videoDurationOptions(profile: VideoCapabilityConfig) {

@@ -1,4 +1,5 @@
 import type { AiTextMessage } from "@/services/api/image";
+import { providerVideoOperations } from "@/lib/generation-operations";
 import { imageReferenceLabel } from "@/lib/image-reference-prompt";
 import { resolveReferenceMediaDuration } from "@/lib/reference-media-metadata";
 import { seedanceReferenceLabel } from "@/lib/seedance-video";
@@ -655,7 +656,8 @@ export async function hydrateNodeGenerationContext(context: NodeGenerationContex
 /** Resolve bound references after model selection; only omni video reference arrays use mention order. */
 export function compileNodeGenerationReferences<T extends NodeGenerationContext>(context: T, config: AiConfig, operation?: string): T {
     const videoCapability = modelCapabilityConfigFor(config, config.model).video;
-    const omniVideoReferences = operation === "reference_to_video"
+    const mode = providerVideoOperations(config)?.find(item => item.value === operation);
+    const omniVideoReferences = (mode ? mode.referenceMode === "all" : operation === "reference_to_video")
         && (!config.taskWorkflowProvider || config.taskWorkflowProvider === "model")
         && Boolean(videoCapability?.operations.includes("reference_to_video") && ((videoCapability.references.maxVideos ?? 0) > 0 || (videoCapability.references.maxAudios ?? 0) > 0));
     const compiled = compileBoundMediaReferences(context, omniVideoReferences);

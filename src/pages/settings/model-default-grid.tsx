@@ -68,7 +68,7 @@ export function ModelDefaultGrid({ config, onChange, onOpenChannels }: { config:
                     const model = group.models.includes(selected) ? selected : group.models[0];
                     const label = modelDisplayName(config, model);
                     const modelChannel = resolveModelChannel(config, model);
-                    const channel = isBuiltinBeefAPIChannel(modelChannel) ? "BeefTV" : modelChannel.name || "未命名渠道";
+                    const channel = isBuiltinBeefAPIChannel(modelChannel) ? "BeefTV" : modelChannel.name || "未命名连接";
                     return { value: model, label, searchLabel: `${label} ${channel}`, channel };
                 });
                 if (isAssistant) options.unshift({ value: "", label: "跟随默认文本模型", searchLabel: "跟随默认文本模型", channel: "" });
@@ -110,7 +110,7 @@ export function ModelDefaultGrid({ config, onChange, onOpenChannels }: { config:
                                     onChange(row.modelKey, model);
                                 }}
                             />
-                            {!options.length && localMode && onOpenChannels ? <Button type="link" size="small" onClick={onOpenChannels}>添加模型渠道</Button> : null}
+                            {!options.length && localMode && onOpenChannels ? <Button type="link" size="small" onClick={onOpenChannels}>添加模型连接</Button> : null}
                         </div>
                     </section>
                 );

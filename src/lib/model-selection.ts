@@ -1,3 +1,4 @@
+import { resolveVideoOperation, providerVideoOperationError } from "@/lib/generation-operations";
 import { defaultImageCapabilityConfig, modelCapabilityConfigFor, normalizeImageValue, normalizeVideoValue, STANDARD_IMAGE_SIZE_VALUES, VIDEO_CAPABILITIES_UNAVAILABLE, videoDurationAllowed, videoReferencesForOperation, type ImageCapabilityConfig } from "@/lib/model-capabilities";
 import { normalizeVideoBoolean, normalizeVideoResolutionValue, videoResolutionComparisonKey } from "@/lib/video-generation-options";
 import { imageSizePresets } from "@/lib/image-size-presets";
@@ -107,8 +108,10 @@ export function modelCompatibilityError(config: AiConfig, model: string, require
         const profile = capabilityConfig.video!;
         if (requirements.videoSeconds && !videoDurationAllowed(profile, Number(requirements.videoSeconds))) return "不支持当前视频时长";
         if (!input) return "";
-        const operation = resolveVideoOperation(input, requirements.videoOperation);
-        const refs = videoReferencesForOperation(profile, requirements.videoOperation || "");
+        const operation = resolveVideoOperation(input, requirements.videoOperation, config, model);
+        const modeError = providerVideoOperationError(config, input, requirements.videoOperation, model);
+        if (modeError) return modeError;
+        const refs = videoReferencesForOperation(profile, operation);
         if (visualInputCount > refs.maxImages) return `最多支持 ${refs.maxImages} 张参考图`;
         if (input.videoCount > refs.maxVideos) return `最多支持 ${refs.maxVideos} 个参考视频`;
         if (input.audioCount > refs.maxAudios) return `最多支持 ${refs.maxAudios} 个参考音频`;
@@ -291,7 +294,7 @@ export function resolveModelGenerationDefaults(
     // The persisted global values are legacy defaults and must not override a
     // model's configured duration, ratio, or resolution on a new canvas node.
     const hasModelCapabilityProfile = Boolean(profile?.capabilityConfig);
-    const source = (key: keyof ModelGenerationDefaults) => explicit[key] ?? (isManagedModel || hasModelCapabilityProfile ? undefined : fallback[key]);
+    const source = (key: keyof ModelGenerationDefaults) => explicit[key] ?? profile?.generationDefaults?.[key] ?? (isManagedModel || hasModelCapabilityProfile ? undefined : fallback[key]);
     const capabilityProfile = modelCapabilityConfigFor(config, model);
     if (capability === "video" && capabilityProfile.videoCapabilitiesUnavailable) return { ...fallback, ...explicit };
 
@@ -367,23 +370,6 @@ export function modelGroupReferenceLimits(config: AiConfig, selected: string, ca
         },
         { maxImages: 0, maxVideos: 0, maxAudios: 0 },
     );
-}
-
-export function inferVideoOperation(input: ModelInputSummary) {
-    const visualInputCount = input.imageCount + input.characterCount;
-    // 图片或角色决定图生视频主模式，音频只作为附加参考，不应把组合请求
-    // 提升为全模态参考；纯音频输入才使用独立的 audio_to_video 能力。
-    if (input.videoCount > 0 || visualInputCount > 2) return "reference_to_video";
-    if (visualInputCount > 0) return "image_to_video";
-    if (input.audioCount > 0) return "audio_to_video";
-    return "text_to_video";
-}
-
-export function resolveVideoOperation(input: ModelInputSummary, storedOperation?: string) {
-    if (storedOperation === "reference_to_video" && input.imageCount + input.characterCount + input.videoCount + input.audioCount > 0) return storedOperation;
-    if (storedOperation === "extend" && input.videoCount > 0) return storedOperation;
-    if (storedOperation && !["text_to_video", "image_to_video", "audio_to_video", "extend", "reference_to_video"].includes(storedOperation)) return storedOperation;
-    return inferVideoOperation(input);
 }
 
 function videoOperationLabel(operation: string) {

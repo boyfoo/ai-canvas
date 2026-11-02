@@ -1,5 +1,13 @@
 import type { ImageCapabilityConfig } from "./model-capabilities";
 
+export const SEEDREAM_GENERATION_DEFAULTS = {
+    seedreamMode: "image",
+    seedreamMaxImages: "1",
+    seedreamOutputFormat: "png",
+    seedreamOptimize: "standard",
+    seedreamWatermark: "false",
+} as const;
+
 // 与后端 providerpreset.SeedreamFamily 保持同一套识别规则：国内官方型号带
 // doubao- 前缀，去掉前缀后再分族，Pro / Flash 必须排在通用 5.0 之前。
 export function seedreamFamily(model = "") {

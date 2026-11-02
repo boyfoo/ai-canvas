@@ -1,12 +1,12 @@
 import { Button, Input } from "antd";
 import { Tooltip } from "@/components/ui/base/tooltip";
 
-import { Plus, Trash2 } from "lucide-react";
+import { CircleHelp, Plus, Trash2 } from "lucide-react";
 import type { ChangeEvent } from "react";
 
 import type { ChannelHeader } from "@/stores/use-config-store";
 
-const DEFAULT_USER_AGENT = "BeefTV/1.0 (+https://github.com/glanderness/BeefTV)";
+const USER_AGENT_EXAMPLE = "BeefTV/1.0 (+https://github.com/glanderness/BeefTV)";
 const MAX_HEADER_COUNT = 32;
 const BLOCKED_HEADERS = new Set([
     "authorization",
@@ -47,13 +47,12 @@ export function ChannelHeadersEditor({ value = [], onChange, disabled }: Props) 
         <div className="space-y-2 rounded-md border border-border/70 bg-muted/[.1] p-3">
             <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
-                    <div className="text-sm font-medium text-foreground">自定义请求头</div>
-                    <div className="mt-0.5 break-all text-xs leading-5 text-foreground/50">默认发送 {DEFAULT_USER_AGENT}；添加 User-Agent 后会覆盖默认值。</div>
+                    <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">自定义请求头<Tooltip title="向此连接的模型接口请求附加额外信息，例如服务商要求的项目或组织标识。通常留空；Authorization 等受保护请求头由系统管理。"><button type="button" aria-label="自定义请求头用途说明" className="inline-flex text-foreground/50"><CircleHelp className="size-3.5" /></button></Tooltip></div>
                 </div>
                 {!hasUserAgent ? (
-                    <Button size="small" disabled={disabled || headers.length >= MAX_HEADER_COUNT} onClick={() => onChange?.([...headers, { name: "User-Agent", value: DEFAULT_USER_AGENT }])}>
+                    <Tooltip title="添加一条可编辑的客户端标识示例，不表示已经发送。服务商未要求时不必添加，是否生效以实际请求为准。"><Button size="small" disabled={disabled || headers.length >= MAX_HEADER_COUNT} onClick={() => onChange?.([...headers, { name: "User-Agent", value: USER_AGENT_EXAMPLE }])}>
                         添加 User-Agent
-                    </Button>
+                    </Button></Tooltip>
                 ) : null}
             </div>
             {headers.length ? (

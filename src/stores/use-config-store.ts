@@ -359,6 +359,8 @@ export type ModelChannel = {
     apiKey: string;
     secretKey?: string;
     headers?: ChannelHeader[];
+    referenceMediaTransport?: ReferenceMediaTransport;
+    syncPrivateAssets?: boolean;
     apiFormat: ApiCallFormat;
     interfaceType?: ChannelInterfaceType;
     models: string[];
@@ -380,7 +382,6 @@ export type ModelChannel = {
         icon?: string;
         capability: ModelCapability;
         protocol?: ModelProtocol;
-        referenceMediaTransport?: ReferenceMediaTransport;
         authType?: string;
         capabilityConfig?: ModelCapabilityConfig;
         imageCapabilitiesVersion?: string;
@@ -392,10 +393,13 @@ export type ModelChannel = {
         logicalCapabilitySpec?: CapabilitySpec;
         logicalCapabilityProfiles?: CapabilitySpec[];
         defaultOptions?: Record<string, unknown>;
+        generationDefaults?: import("@/lib/generation-parameters").GenerationDefaults;
     }>;
 };
 
 export type AiConfig = {
+    /** 当前节点的提供商参数快照，不作为全局默认值保存。 */
+    providerOptions?: Record<string, Record<string, unknown>>;
     channelMode: "remote";
     baseUrl: string;
     apiKey: string;
@@ -995,6 +999,8 @@ export function createModelChannel(channel?: Partial<ModelChannel>): ModelChanne
         sortOrder: channel?.sortOrder ?? 0,
         baseUrl: providedBaseUrl || (interfaceType ? defaultBaseUrlForChannelInterface(interfaceType) : defaultBaseUrlForApiFormat(apiFormat)),
         referenceAssetOrigin: channel?.referenceAssetOrigin?.trim() || undefined,
+        referenceMediaTransport: channel?.referenceMediaTransport,
+        syncPrivateAssets: channel?.syncPrivateAssets,
         apiKey: channel?.apiKey || "",
         secretKey: channel?.secretKey || "",
         headers: Array.isArray(channel?.headers) ? channel.headers.map((header) => ({ name: String(header.name || ""), value: String(header.value || "") })) : [],
@@ -1102,7 +1108,7 @@ export function logicalModelIDForConfig(config: AiConfig) {
 }
 
 export function channelConnectionSignature(channel: ModelChannel) {
-    return [channel.provider_id || "", channel.baseUrl.trim(), channel.referenceAssetOrigin?.trim() || "", channel.apiKey.trim(), channel.secretKey?.trim() || "", channel.apiFormat, channel.interfaceType || "auto", JSON.stringify(channel.headers || [])].join("\n");
+    return [channel.provider_id || "", channel.baseUrl.trim(), channel.referenceAssetOrigin?.trim() || "", channel.apiKey.trim(), channel.secretKey?.trim() || "", channel.apiFormat, channel.interfaceType || "auto", JSON.stringify(channel.headers || []), JSON.stringify(channel.referenceMediaTransport || {}), String(channel.syncPrivateAssets)].join("\n");
 }
 
 export function resolveModelRequestConfig(config: AiConfig, value: string) {
@@ -1121,7 +1127,7 @@ export function resolveModelRequestConfig(config: AiConfig, value: string) {
         model,
         baseUrl: channel.baseUrl,
         referenceAssetOrigin: channel.referenceAssetOrigin,
-        referenceMediaTransport: channel.scope === "system" ? undefined : modelProfile?.referenceMediaTransport,
+        referenceMediaTransport: channel.scope === "system" ? undefined : channel.referenceMediaTransport,
         apiKey: channel.credentialRef ? "" : channel.apiKey,
         secretKey: channel.credentialRef ? "" : channel.secretKey,
         headers: channel.headers,

@@ -1,5 +1,9 @@
 import { CanvasConfigComposer } from "@/components/canvas/canvas-config-composer";
 import { CanvasNodePromptPanel } from "@/components/canvas/canvas-node-prompt-panel";
+import { CanvasVideoFrameSlots } from "@/components/canvas/canvas-video-frame-slots";
+import { providerVideoOperations, resolveVideoOperation } from "@/lib/generation-operations";
+import { isCanvasWorkflowProvider } from "@/lib/canvas/canvas-workflow";
+import { useEffectiveConfig } from "@/stores/use-config-store";
 import { buildCanvasResourceReferences, type CanvasResourceReference } from "@/lib/canvas/canvas-resource-references";
 import { isCanvasNodeGenerating } from "@/lib/canvas/canvas-node-task-state";
 import type { CanvasPageUiStoreHook } from "@/stores/canvas/use-canvas-page-ui-store";
@@ -34,6 +38,7 @@ export function CanvasProjectNodePrompt({ node: panelNode, projectId, videoModel
     renderModel, generation, nodeEditor, pageUi, referenceActions, onFocusNode: focusCanvasNode,
     onCreateReplacement: createGenerationReplacement, onNodeMouseDown: handleNodeMouseDown,
 }: Props) {
+    const globalConfig = useEffectiveConfig();
     const { nodesRef, connectionsRef } = document;
     const { configInputsById, mentionReferencesByNodeId, skillMentionReferences } = renderModel;
     const { handleConfigNodeChange, handleNodePromptChange } = nodeEditor;
@@ -43,6 +48,12 @@ export function CanvasProjectNodePrompt({ node: panelNode, projectId, videoModel
     const { handleRemoveNodeReference, handleReorderNodeReferences, handleReplaceNodeReference, handleReplaceNodeReferenceFiles } = referenceActions;
     const workspaceMode = "professional";
     if (panelNode.type === CanvasNodeType.Script || panelNode.type === CanvasNodeType.Drawing) return null;
+    const references = panelNode.type === CanvasNodeType.Config ? buildCanvasResourceReferences(nodesRef.current, connectionsRef.current, panelNode.id) : [];
+    const connected = references.filter((reference) => reference.active);
+    const input = { textCount: 0, imageCount: connected.filter((item) => item.kind === "image").length, videoCount: connected.filter((item) => item.kind === "video").length, audioCount: connected.filter((item) => item.kind === "audio").length, characterCount: connected.filter((item) => item.kind === "character").length };
+    const config = { ...globalConfig, model: panelNode.metadata?.model || videoModel };
+    const modes = panelNode.metadata?.generationMode === "video" && !isCanvasWorkflowProvider(panelNode.metadata) ? providerVideoOperations(config, input) : undefined;
+    const providerMode = modes?.find((mode) => mode.value === resolveVideoOperation(input, panelNode.metadata?.videoEditOperation, config));
     return panelNode.type === CanvasNodeType.Config ? (
         <CanvasConfigComposer
             model={panelNode.metadata?.model || videoModel}
@@ -52,6 +63,8 @@ export function CanvasProjectNodePrompt({ node: panelNode, projectId, videoModel
             generationMode={panelNode.metadata?.generationMode}
             metadata={panelNode.metadata}
             workspaceMode={workspaceMode}
+            providerReferenceMode={modes?.length ? providerMode?.referenceMode || "none" : undefined}
+            videoFrameSlots={providerMode?.referenceMode === "frames" ? <CanvasVideoFrameSlots metadata={panelNode.metadata} references={connected} availableReferences={references.filter((reference) => reference.kind === "image" && reference.nodeId !== panelNode.id)} endFrameSupported={providerMode.frameCount === 2} onChange={(role, source) => referenceActions.setVideoFrame(panelNode.id, role, source, providerMode.frameCount === 2)} onMetadataChange={(patch) => handleConfigNodeChange(panelNode.id, patch)} /> : undefined}
             onChange={(composerContent) => handleConfigNodeChange(panelNode.id, { composerContent })}
             onMetadataChange={(patch) => handleConfigNodeChange(panelNode.id, patch)}
             onClose={() => setDialogNodeId(null)}
@@ -78,6 +91,7 @@ export function CanvasProjectNodePrompt({ node: panelNode, projectId, videoModel
             onReorderReferences={handleReorderNodeReferences}
             onReplaceReference={handleReplaceNodeReference}
             onReplaceReferenceFiles={handleReplaceNodeReferenceFiles}
+            onSetVideoFrame={referenceActions.setVideoFrame}
             onClose={() => setDialogNodeId(null)}
             onNodeMouseDown={handleNodeMouseDown}
             workspaceMode={workspaceMode}

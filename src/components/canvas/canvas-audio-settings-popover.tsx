@@ -1,3 +1,4 @@
+import { CanvasProviderParameterFields } from "@/components/generation-parameter-fields";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { Settings2 } from "lucide-react";
@@ -13,13 +14,14 @@ export type CanvasAudioSettingKey = "audioVoice" | "audioFormat" | "audioSpeed" 
 
 type CanvasAudioSettingsPopoverProps = {
     config: AiConfig;
+    onProviderOptionsChange?: (value: NonNullable<AiConfig["providerOptions"]>) => void;
     onConfigChange: (key: CanvasAudioSettingKey, value: string) => void;
     buttonClassName?: string;
     placement?: "topLeft" | "top" | "topRight" | "bottomLeft" | "bottom" | "bottomRight";
     summaryOverride?: string;
 };
 
-export function CanvasAudioSettingsPopover({ config, onConfigChange, buttonClassName, placement = "topLeft", summaryOverride }: CanvasAudioSettingsPopoverProps) {
+export function CanvasAudioSettingsPopover({ config, onProviderOptionsChange, onConfigChange, buttonClassName, placement = "topLeft", summaryOverride }: CanvasAudioSettingsPopoverProps) {
     const theme = canvasThemes[useActiveTheme()];
     const buttonRef = useRef<HTMLSpanElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
@@ -48,7 +50,7 @@ export function CanvasAudioSettingsPopover({ config, onConfigChange, buttonClass
         };
     }, [open]);
 
-    const panel = open && buttonRect ? <AudioSettingsPortal buttonRect={buttonRect} panelRef={panelRef} placement={placement} theme={theme} config={config} onConfigChange={onConfigChange} /> : null;
+    const panel = open && buttonRect ? <AudioSettingsPortal buttonRect={buttonRect} panelRef={panelRef} placement={placement} theme={theme} config={config} onConfigChange={onConfigChange} onProviderOptionsChange={onProviderOptionsChange} /> : null;
 
     return (
         <>
@@ -69,12 +71,14 @@ function AudioSettingsPortal({
     theme,
     config,
     onConfigChange,
+    onProviderOptionsChange,
 }: {
     buttonRect: DOMRect;
     panelRef: RefObject<HTMLDivElement | null>;
     placement: CanvasAudioSettingsPopoverProps["placement"];
     theme: (typeof canvasThemes)[keyof typeof canvasThemes];
     config: AiConfig;
+    onProviderOptionsChange?: (value: NonNullable<AiConfig["providerOptions"]>) => void;
     onConfigChange: (key: CanvasAudioSettingKey, value: string) => void;
 }) {
     const width = 356;
@@ -109,6 +113,7 @@ function AudioSettingsPortal({
             onClick={(event) => event.stopPropagation()}
         >
             <AudioSettingsPanel config={config} onConfigChange={(key, value) => onConfigChange(key, value)} theme={theme} className="space-y-4" />
+            {onProviderOptionsChange ? <CanvasProviderParameterFields config={config} theme={theme} onChange={onProviderOptionsChange} /> : null}
         </div>,
         document.body,
     );

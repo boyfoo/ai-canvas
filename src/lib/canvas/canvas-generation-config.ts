@@ -1,10 +1,11 @@
-import { configuredModelMatchesCapability, defaultConfig, normalizeModelOptionValue, normalizeRunningHubCapability, type AiConfig, type WorkflowFieldMapping } from "@/stores/use-config-store";
+import { configuredModelMatchesCapability, defaultConfig, modelOptionName, resolveModelChannel, normalizeModelOptionValue, normalizeRunningHubCapability, type AiConfig, type WorkflowFieldMapping } from "@/stores/use-config-store";
 import { resolveAudioSpeechSettings } from "@/lib/audio-generation";
 import { normalizeVideoDuration, normalizeVideoResolution } from "@/lib/video-generation-options";
 import { isH3Model, h3VideoOperation } from "@/lib/h3-video";
 import { seedancePortraitModel } from "@/lib/seedance-portrait";
+import { SEEDREAM_GENERATION_DEFAULTS, seedreamFamily } from "@/lib/seedream-image";
 import { workflowFieldCurrentValue, workflowFieldHasStoredValue, workflowFieldKey, workflowFieldRandomKey, workflowFieldSubmissionValue, workflowOutputSizeValue, workflowVideoFieldsFromJson } from "@/lib/model-capabilities";
-import { modelRequestOptions, resolveCompatibleModel, resolveModelGenerationDefaults, resolveModelVideoBooleanOptions, type ModelGenerationDefaults, type ModelInputSummary, type ModelRequirements } from "@/lib/model-selection";
+import { modelRequestOptions, resolveCompatibleModel, resolveModelGenerationDefaults, type ModelGenerationDefaults, type ModelInputSummary, type ModelRequirements } from "@/lib/model-selection";
 import { mediaGeneratorMetadata } from "@/lib/canvas/canvas-node-semantics";
 import { resolveCanvasWorkflowProvider } from "@/lib/canvas/canvas-workflow";
 import { useCreationPreferencesStore } from "@/stores/use-creation-preferences-store";
@@ -82,7 +83,7 @@ export function buildGenerationConfig(config: AiConfig, node: CanvasNodeData | u
                 : String(node?.metadata?.vquality ?? workflowParameterValue("vquality") ?? config.vquality ?? defaultConfig.vquality),
         videoGenerateAudio: node?.metadata?.generateAudio ?? config.videoGenerateAudio ?? defaultConfig.videoGenerateAudio,
         videoWatermark: node?.metadata?.watermark ?? config.videoWatermark ?? defaultConfig.videoWatermark,
-        videoArkPrivateAssetUpload: node?.metadata?.arkPrivateAssetUpload ?? config.videoArkPrivateAssetUpload ?? defaultConfig.videoArkPrivateAssetUpload,
+        videoArkPrivateAssetUpload: node?.metadata?.arkPrivateAssetUpload ?? String(resolveModelChannel(config, preferredModel).syncPrivateAssets !== false),
         ...resolveAudioSpeechSettings(preferredModel, {
             audioVoice: node?.metadata?.audioVoice ?? config.audioVoice,
             audioFormat: node?.metadata?.audioFormat ?? config.audioFormat,
@@ -152,6 +153,7 @@ export function buildGenerationConfig(config: AiConfig, node: CanvasNodeData | u
     return {
         ...requestedConfig,
         taskWorkflowProvider: workflowProvider,
+        providerOptions: node?.metadata?.providerOptions,
         runningHub,
         model,
         quality: generationDefaults.quality || requestedConfig.quality,
@@ -176,74 +178,40 @@ export function resolveCanvasGenerationModel(config: AiConfig, model: string | u
     return configuredModelMatchesCapability(config, normalized, mode) ? normalized : "";
 }
 
-export function preferredMediaGeneratorMetadata(
-    config: AiConfig,
-    mode: "image" | "video" | "audio",
-    overrides: CanvasNodeMetadata = {},
-): CanvasNodeMetadata {
+export function generationModelMetadata(config: AiConfig, model: string, mode: CanvasGenerationMode): CanvasNodeMetadata {
+    const channel = resolveModelChannel(config, model);
+    const profile = channel.modelProfiles?.find(item => item.model === modelOptionName(model));
+    const common = resolveModelGenerationDefaults(config, model, mode === "image" || mode === "video" ? mode : undefined);
+    const audio = mode === "audio" ? resolveAudioSpeechSettings(model, profile?.generationDefaults || {}) : {};
+    const seedream = mode === "image" && seedreamFamily(model) ? { ...SEEDREAM_GENERATION_DEFAULTS, ...profile?.generationDefaults } : undefined;
+    return {
+        model,
+        ...(mode === "video" ? { videoEditOperation: undefined } : {}),
+        ...(common.size !== undefined ? { size: common.size } : {}),
+        ...(common.quality !== undefined ? { quality: common.quality } : {}),
+        ...(common.count !== undefined ? { count: Number(common.count) } : {}),
+        ...(common.transparentBackground !== undefined ? { transparentBackground: common.transparentBackground } : {}),
+        ...(common.videoSeconds !== undefined ? { seconds: common.videoSeconds } : {}),
+        ...(common.vquality !== undefined ? { vquality: common.vquality } : {}),
+        ...(common.videoGenerateAudio !== undefined ? { generateAudio: common.videoGenerateAudio } : {}),
+        ...(common.videoWatermark !== undefined ? { watermark: common.videoWatermark } : {}),
+        ...audio,
+        ...(mode === "image" ? {
+            seedreamMode: seedream?.seedreamMode,
+            seedreamMaxImages: seedream?.seedreamMaxImages,
+            seedreamOutputFormat: seedream?.seedreamOutputFormat,
+            seedreamOptimize: seedream?.seedreamOptimize,
+            seedreamWatermark: seedream?.seedreamWatermark,
+        } : {}),
+        providerOptions: profile?.protocol ? { [profile.protocol]: structuredClone(profile.defaultOptions || {}) } : {},
+    };
+}
+
+export function preferredMediaGeneratorMetadata(config: AiConfig, mode: "image" | "video" | "audio", overrides: CanvasNodeMetadata = {}): CanvasNodeMetadata {
     const prefs = useCreationPreferencesStore.getState().preferences;
-    if (mode === "image" && prefs.image) {
-        const preferredModel =
-            overrides.model
-            || resolveCanvasGenerationModel(config, prefs.image.model, "image")
-            || resolveCanvasGenerationModel(config, config.imageModel, "image")
-            || config.imageModel
-            || defaultConfig.imageModel;
-        const requested = {
-            size: overrides.size ?? prefs.image.ratio,
-            quality: overrides.quality ?? prefs.image.quality,
-            count: overrides.count === undefined ? prefs.image.count : String(overrides.count),
-            transparentBackground: overrides.transparentBackground ?? prefs.image.transparentBackground,
-        };
-        const model = resolveCompatibleModel(config, preferredModel, {
-            capability: "image",
-            imageSize: requested.size,
-            options: requested,
-        }) || preferredModel;
-        const normalized = resolveModelGenerationDefaults(config, model, "image", requested);
-        return mediaGeneratorMetadata({
-            generationMode: "image",
-            ...((prefs.image.model || model !== preferredModel) && model ? { model } : {}),
-            ...(prefs.image.ratio && normalized.size ? { size: normalized.size } : {}),
-            ...(prefs.image.quality && normalized.quality ? { quality: normalized.quality } : {}),
-            ...(prefs.image.count && normalized.count ? { count: Number(normalized.count) || 1 } : {}),
-            ...(prefs.image.transparentBackground && normalized.transparentBackground ? { transparentBackground: normalized.transparentBackground } : {}),
-            ...overrides,
-        });
-    }
-    if (mode === "video" && prefs.video) {
-        const preferredModel =
-            overrides.model
-            || resolveCanvasGenerationModel(config, prefs.video.model, "video")
-            || resolveCanvasGenerationModel(config, config.videoModel, "video")
-            || config.videoModel
-            || defaultConfig.videoModel;
-        const requested = {
-            size: overrides.size ?? prefs.video.ratio,
-            videoSeconds: overrides.seconds ?? prefs.video.seconds,
-            vquality: overrides.vquality ?? prefs.video.videoQuality,
-            videoGenerateAudio: overrides.generateAudio ?? prefs.video.generateAudio,
-            videoWatermark: overrides.watermark ?? prefs.video.watermark,
-        };
-        const model = resolveCompatibleModel(config, preferredModel, {
-            capability: "video",
-            videoSeconds: requested.videoSeconds,
-            options: requested,
-        }) || preferredModel;
-        const normalized = resolveModelGenerationDefaults(config, model, "video", requested);
-        const booleans = resolveModelVideoBooleanOptions(config, model, requested);
-        return mediaGeneratorMetadata({
-            generationMode: "video",
-            ...((prefs.video.model || model !== preferredModel) && model ? { model } : {}),
-            ...(prefs.video.ratio && normalized.size ? { size: normalized.size } : {}),
-            ...(prefs.video.seconds && normalized.videoSeconds ? { seconds: normalized.videoSeconds } : {}),
-            ...(prefs.video.videoQuality && normalized.vquality ? { vquality: normalized.vquality } : {}),
-            ...(prefs.video.generateAudio !== undefined ? { generateAudio: booleans.videoGenerateAudio } : {}),
-            ...(prefs.video.watermark !== undefined ? { watermark: booleans.videoWatermark } : {}),
-            ...overrides,
-        });
-    }
-    return mediaGeneratorMetadata({ generationMode: mode, ...overrides });
+    const preferred = mode === "image" ? prefs.image?.model || config.imageModel : mode === "video" ? prefs.video?.model || config.videoModel : config.audioModel;
+    const model = overrides.model || resolveCanvasGenerationModel(config, preferred, mode) || (mode === "image" ? config.imageModel : mode === "video" ? config.videoModel : config.audioModel);
+    return mediaGeneratorMetadata({ generationMode: mode, ...generationModelMetadata(config, model, mode), ...overrides });
 }
 
 function applyWorkflowParameterValues(fields: WorkflowFieldMapping[] | undefined, values: Record<string, unknown>) {

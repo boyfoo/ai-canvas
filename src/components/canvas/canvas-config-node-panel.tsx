@@ -7,7 +7,9 @@ import { Switch } from "@/components/ui/base/switch";
 import { videoSupportsTaskTypeConstraints } from "@/lib/model-capabilities";
 import { isH3Model, h3VideoOperation } from "@/lib/h3-video";
 import { CanvasH3Controls, CanvasH3UnsupportedFrames } from "./canvas-h3-controls";
-import { resolveVideoOperation } from "@/lib/model-selection";
+import { resolveVideoOperation } from "@/lib/generation-operations";
+import { providerVideoOperations, videoOperationMetadata } from "@/lib/generation-operations";
+import { CanvasVideoOperationSelect } from "./canvas-video-operation-select";
 
 import {
     modelOptionName,
@@ -255,7 +257,8 @@ export function CanvasConfigNodePanel({ node, isRunning, inputSummary, onConfigC
 
             {mode === "video" && !simpleMode ? (
                 <div className="cursor-default" data-canvas-no-zoom onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
-                    {workflowProvider === "model" && (videoSupportsTaskTypeConstraints(modelCapabilityConfigFor(config, config.model).video) || isH3Model(config.model)) ? (
+                    {workflowProvider === "model" && (providerVideoOperations(config)?.length || videoSupportsTaskTypeConstraints(modelCapabilityConfigFor(config, config.model).video) || isH3Model(config.model)) ? (
+                        providerVideoOperations(config)?.length ? <CanvasVideoOperationSelect config={config} input={inputSummary} value={node.metadata?.videoEditOperation} onChange={operation => onConfigChange(node.id, videoOperationMetadata(config, operation))} /> :
                         <Select
                             aria-label="视频生成模式"
                             className="w-full"

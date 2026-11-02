@@ -1,17 +1,20 @@
 import { beefAPIVideoContract, isBeefAPIEndpoint } from "./beefapi-video-contracts";
 import { h3ReferenceMode, h3VideoOperation, isH3Model, isH3Style } from "./h3-video";
 import { modelCapabilityConfigFor } from "./model-capabilities";
+import { providerVideoOperations } from "./generation-operations";
 import { seedanceSettingsConstraints, type SeedanceSettingsConstraints } from "./seedance-task-constraints";
 import { modelOptionName, resolveModelRequestConfig, type AiConfig } from "@/stores/use-config-store";
 import type { CanvasNodeMetadata } from "@/types/canvas";
 
-export type VideoSettingsConstraints = SeedanceSettingsConstraints & { ratioHelp?: string };
+export type VideoSettingsConstraints = SeedanceSettingsConstraints & { ratioHelp?: string; durationLabel?: string };
 
 export function videoSettingsConstraints(
     config: AiConfig,
     input: { imageCount?: number; videoCount?: number; audioCount?: number; characterCount?: number },
     metadata?: Pick<CanvasNodeMetadata, "videoEditOperation" | "videoStartFrameNodeId" | "videoEndFrameNodeId" | "videoMiddleFrameNodeId">,
 ): VideoSettingsConstraints {
+    // 已声明模式的提供商统一由参数契约约束，不能再按图片数量把全模态参考误判成首尾帧。
+    if (providerVideoOperations(config)) return {};
     const model = modelOptionName(config.model);
     const imageCount = input.imageCount || 0;
     const videoCount = input.videoCount || 0;

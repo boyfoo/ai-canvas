@@ -3,8 +3,8 @@ import { createClientId } from "@/lib/client-id";
 import { APP_STATE_STORE_NAME, localForageInstance } from "@/lib/localforage-storage";
 import { scopedStorageKey } from "@/lib/user-scope";
 import { browserVideoProvider } from "@/services/providers/ark-video-provider";
-import { resolveModelChannel, useConfigStore, type ModelChannel } from "@/stores/use-config-store";
-import type { BackendGenerationTaskOptions } from "@/services/api/generation-task";
+import { channelConnectionSignature, resolveModelChannel, useConfigStore, type ModelChannel } from "@/stores/use-config-store";
+import type { BackendGenerationResult, BackendGenerationTaskOptions } from "@/services/api/generation-task";
 import type { GenerationTask, TaskLog } from "@/services/api/task-center";
 
 type BrowserTaskRecord = {
@@ -38,7 +38,7 @@ async function write(record: BrowserTaskRecord) {
     return record.task;
 }
 function connection(record: BrowserTaskRecord): ModelChannel {
-    const channel = useConfigStore.getState().config.channels.find(item => item.id === record.channel_id) || unsavedConnections.get(record.channel_id);
+    const channel = unsavedConnections.get(record.task.id) || useConfigStore.getState().config.channels.find(item => item.id === record.channel_id);
     if (!channel || channel.provider_id !== record.provider_id) throw new Error("此任务的提供商连接已被删除，请恢复连接后查询");
     if (channel.baseUrl.replace(/\/+$/, "") !== record.base_url) throw new Error("此任务的服务地址已变更，请恢复原地址后查询");
     if (!channel.apiKey.trim()) throw new Error("请先填写此任务对应连接的 API Key");
@@ -53,7 +53,6 @@ export async function createBrowserGenerationTask(options: BackendGenerationTask
     const channel = resolveModelChannel(options.config, options.config.model);
     const provider = browserVideoProvider(channel.provider_id);
     if (!provider || options.mode !== "video") throw new Error("该提供商仅支持浏览器视频生成");
-    if (!useConfigStore.getState().config.channels.some(item => item.id === channel.id)) unsavedConnections.set(channel.id, channel);
     const operationId = options.clientOperationId || createClientId();
     // 同一个操作标识只允许提交一次；跨标签页也使用浏览器锁协调。
     return navigator.locks.request(operationLock(operationId), async () => {
@@ -70,6 +69,8 @@ export async function createBrowserGenerationTask(options: BackendGenerationTask
                 clientContext: { source: typeof metadata.source === "string" ? metadata.source : "canvas", nodeId: typeof metadata.nodeId === "string" ? metadata.nodeId : undefined, batchIndex: typeof metadata.batchIndex === "number" ? metadata.batchIndex : undefined, batchCount: typeof metadata.batchCount === "number" ? metadata.batchCount : undefined },
             },
         };
+        const savedConnection = useConfigStore.getState().config.channels.find(item => item.id === channel.id);
+        if (!savedConnection || channelConnectionSignature(savedConnection) !== channelConnectionSignature(channel)) unsavedConnections.set(record.task.id, structuredClone(channel));
         await write(record); notify(record.task, "canvas:task-created"); options.onTaskUpdate?.(record.task);
         let submitted = false;
         try {
@@ -106,6 +107,21 @@ export async function listBrowserGenerationTasks(): Promise<GenerationTask[]> {
     return records.flatMap(record => record ? [record.task] : []);
 }
 
+export async function promoteBrowserGenerationDraft(task_id: string): Promise<GenerationTask> {
+    const record = await read(task_id);
+    const parameters = JSON.parse(record.task.inputJson || "{}").parameters || {};
+    if (record.provider_id !== "ark-video" || record.task.status !== "succeeded" || !record.task.providerRequestId || parameters.draft !== true) throw new Error("仅已成功完成的方舟样片可以转正式视频");
+    const channel = connection(record);
+    const config = useConfigStore.getState().config;
+    // 固定操作标识防止重复点击或刷新后重复创建收费任务。
+    return createBrowserGenerationTask({
+        mode: "video", projectId: record.task.projectId, prompt: record.task.prompt,
+        clientOperationId: `promote:${task_id}`,
+        config: { ...config, channels: [...config.channels.filter(item => item.id !== channel.id), channel], model: record.task.model!, taskWorkflowProvider: "model", videoWatermark: String(parameters.watermark === true), providerOptions: { "volcengine-ark-video": { ...(parameters.output_format ? { output_format: parameters.output_format } : {}), return_last_frame: parameters.return_last_frame === true } } },
+        metadata: { source: "task-action", providerOptions: { "volcengine-ark-video": { draft_task_id: record.task.providerRequestId } } },
+    });
+}
+
 export function queryBrowserGenerationTask(id: string, signal?: AbortSignal): Promise<GenerationTask> {
     // 带取消信号的观察独立执行，避免一个等待者取消其他观察者。
     if (!signal && queries.has(id)) return queries.get(id)!;
@@ -136,7 +152,14 @@ export function queryBrowserGenerationTask(id: string, signal?: AbortSignal): Pr
         if (observed.status === "succeeded") {
             if (!observed.video_url || !/^https?:\/\//.test(observed.video_url)) throw new Error("方舟已完成任务，但没有返回视频地址");
             record.task.previewUrl = observed.video_url; record.task.previewKind = "video";
-            record.task.resultJson = JSON.stringify({ mode: "video", video: { dataUrl: observed.video_url, url: observed.video_url, previewUrl: observed.last_frame_url, durationMs: observed.duration_ms, mimeType: "video/mp4" } });
+            const result: BackendGenerationResult = {
+                mode: "video",
+                video: {
+                    dataUrl: observed.video_url, url: observed.video_url, durationMs: observed.duration_ms, mimeType: observed.mime_type,
+                    ...(observed.last_frame_url ? { lastFrame: { dataUrl: observed.last_frame_url, mimeType: "image/jpeg" } } : {}),
+                },
+            };
+            record.task.resultJson = JSON.stringify(result);
             record.task.resultState = "PENDING_MATERIALIZATION";
         }
         if (["succeeded", "failed", "cancelled"].includes(observed.status)) record.task.completedAt = now();
@@ -182,6 +205,7 @@ export async function deleteBrowserGenerationTask(id: string) {
     const record = await read(id);
     if (["queued", "running"].includes(record.task.status)) throw new Error("请先完成或取消任务，再删除本地记录");
     await store.removeItem(key(id));
+    unsavedConnections.delete(id);
 }
 export async function browserTaskLogs(id: string): Promise<TaskLog[]> {
     const { task } = await read(id);

@@ -10,18 +10,21 @@ import type { useCanvasDocumentState } from "./use-canvas-document-state";
 import type { useCanvasUpload } from "./use-canvas-upload";
 import { useCanvasOwnerLifetime } from "./canvas-owner-epoch";
 import { createCanvasMediaOperation } from "./canvas-media-operation";
+import { assignCanvasVideoFrame, type CanvasVideoFrameRole, type CanvasVideoFrameSource } from "@/lib/canvas/canvas-video-frames";
+import { localAssetToInsertPayload, type InsertAssetPayload } from "@/components/canvas/asset-picker-modal";
+import { uploadImage } from "@/services/image-storage";
 
 type Options = {
     projectId: string;
     document: ReturnType<typeof useCanvasDocumentState>;
     pageUi: CanvasPageUiStoreHook;
-    uploads: Pick<ReturnType<typeof useCanvasUpload>, "replaceNodeMedia">;
+    uploads: Pick<ReturnType<typeof useCanvasUpload>, "replaceNodeMedia" | "createAssetPayloadNode">;
 };
 
 export function useCanvasNodeReferences({ projectId, document, pageUi, uploads }: Options) {
     const { message } = App.useApp();
     const { nodesRef, connectionsRef, setNodes, setConnections } = document;
-    const { replaceNodeMedia } = uploads;
+    const { replaceNodeMedia, createAssetPayloadNode } = uploads;
     const { setSelectedConnectionId } = pageUi.getState();
     const canvasIdRef = useRef(projectId);
     canvasIdRef.current = projectId;
@@ -116,5 +119,32 @@ export function useCanvasNodeReferences({ projectId, document, pageUi, uploads }
             return undefined;
         }
     }, [connectionsRef, message, nodesRef, setConnections, setNodes]);
-    return { handleReplaceNodeReference, handleReplaceNodeReferenceFiles, handleRemoveNodeReference, handleReorderNodeReferences, addTextReference };
+    const setVideoFrame = useCallback(async (targetId: string, role: CanvasVideoFrameRole, source?: CanvasVideoFrameSource, endFrameSupported = true) => {
+        const target = nodesRef.current.find((node) => node.id === targetId);
+        if (!target || target.metadata?.locked) throw new Error("当前节点不可编辑");
+        const operation = createCanvasMediaOperation(lifetime, projectId, () => canvasIdRef.current, () => mountedRef.current);
+        let created: typeof target | undefined;
+        let sourceId = typeof source === "string" ? source : undefined;
+        if (source && typeof source !== "string") {
+            let payload: InsertAssetPayload;
+            if (source instanceof File) {
+                const image = await operation.wait(uploadImage(source));
+                payload = { kind: "image", dataUrl: image.url, storageKey: image.storageKey, title: source.name, width: image.width, height: image.height, bytes: image.bytes, mimeType: image.mimeType };
+            } else {
+                payload = localAssetToInsertPayload(source);
+            }
+            created = await operation.wait(createAssetPayloadNode(payload, { x: target.position.x - 220, y: target.position.y + (role === "last" ? 180 : 0) }));
+            sourceId = created.id;
+        }
+        const current = nodesRef.current.find((node) => node.id === targetId);
+        // 上传期间切换画布、模型或模式时不把迟到结果写入新的编辑状态。
+        if (!operation.isCurrent() || !current || current.metadata?.model !== target.metadata?.model || current.metadata?.videoEditOperation !== target.metadata?.videoEditOperation) return;
+        const result = assignCanvasVideoFrame(created ? [...nodesRef.current, created] : nodesRef.current, connectionsRef.current, targetId, role, sourceId, endFrameSupported);
+        nodesRef.current = result.nodes;
+        connectionsRef.current = result.connections;
+        setNodes(result.nodes);
+        setConnections(result.connections);
+    }, [connectionsRef, createAssetPayloadNode, lifetime, mountedRef, nodesRef, projectId, setConnections, setNodes]);
+
+    return { handleReplaceNodeReference, handleReplaceNodeReferenceFiles, handleRemoveNodeReference, handleReorderNodeReferences, addTextReference, setVideoFrame };
 }

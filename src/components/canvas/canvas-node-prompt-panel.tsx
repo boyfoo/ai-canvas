@@ -1,3 +1,4 @@
+import { resolveVideoOperation, videoOperationMetadata, providerVideoOperations } from "@/lib/generation-operations";
 import { Button, InputNumber, Modal, Popover } from "antd";
 import { Tooltip } from "@/components/ui/base/tooltip";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
@@ -5,7 +6,7 @@ import { ArrowLeftRight, ArrowUp, Boxes, Camera, ChevronDown, FileText, ImagePlu
 
 import { ModelPicker } from "@/components/model-picker";
 import { modelOptionName, resolveModelChannel, selectableModelsByCapability, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
-import { buildGenerationConfig as buildNodeConfig, buildCanvasGenerationRequirements } from "@/lib/canvas/canvas-generation-config";
+import { buildGenerationConfig as buildNodeConfig, buildCanvasGenerationRequirements, generationModelMetadata } from "@/lib/canvas/canvas-generation-config";
 import { PROMPT_EDITOR_VIEWPORT_MARGIN } from "@/lib/canvas/canvas-prompt-editor-size";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { modelRequestOptions, defaultImageParamsForModel, type ModelRequirements } from "@/lib/model-selection";
@@ -19,8 +20,12 @@ import { CanvasResourceMentionTextarea } from "./canvas-resource-mention-textare
 import { CanvasPromptFontControl } from "./canvas-prompt-font-control";
 import { DEFAULT_PROMPT_FONT_SIZE, useCreationPreferencesStore } from "@/stores/use-creation-preferences-store";
 import { CanvasVideoSettingsPopover } from "./canvas-video-settings-popover";
+import { CanvasVideoOperationSelect } from "./canvas-video-operation-select";
 import { videoSettingsConstraints } from "@/lib/video-settings-constraints";
 import { CanvasVideoPromptTools } from "./canvas-video-prompt-tools";
+import { CanvasVideoFrameSlots } from "./canvas-video-frame-slots";
+import type { CanvasVideoFrameRole, CanvasVideoFrameSource } from "@/lib/canvas/canvas-video-frames";
+import { resolveVideoFrameIds } from "@/lib/video-frame-selection";
 import { CanvasH3Controls, CanvasH3UnsupportedFrames } from "./canvas-h3-controls";
 import { CanvasH3ReferenceOrder } from "./canvas-h3-reference-order";
 import { h3VideoOperation, isH3Model, isH3Style } from "@/lib/h3-video";
@@ -28,7 +33,7 @@ import { CanvasPresetPicker, type CanvasPromptPreset } from "./canvas-preset-pic
 import { CanvasPortraitTexturePopover } from "./canvas-portrait-texture-popover";
 import { CanvasPromptOptimizerDrawer } from "./canvas-prompt-optimizer-drawer";
 import { CanvasNodeType, type CanvasConnection, type CanvasGenerationMode, type CanvasNodeData, type CanvasNodeMetadata, type CanvasWorkspaceMode } from "@/types/canvas";
-import { autoMentionCanvasResourceReferences, canvasResourceMentionToken, type CanvasResourceReference } from "@/lib/canvas/canvas-resource-references";
+import { autoMentionCanvasResourceReferences, buildCanvasResourceReferences, canvasResourceMentionToken, type CanvasResourceReference } from "@/lib/canvas/canvas-resource-references";
 import { promptOptimizerPlugin, PROMPT_OPTIMIZER_PLUGIN_ID } from "@/lib/plugins/builtin/prompt-optimizer";
 import { createPluginHostContext } from "@/services/plugin-host";
 import { usePluginStore } from "@/stores/use-plugin-store";
@@ -66,6 +71,7 @@ type CanvasNodePromptPanelProps = {
     onReorderReferences?: (nodeId: string, orderedNodeIds: string[]) => void;
     onReplaceReference?: (nodeId: string, oldReference: CanvasResourceReference, sourceNodeId: string) => void;
     onReplaceReferenceFiles?: (nodeId: string, oldReference: CanvasResourceReference, files: File[]) => void;
+    onSetVideoFrame?: (nodeId: string, role: CanvasVideoFrameRole, source: CanvasVideoFrameSource | undefined, endFrameSupported: boolean) => Promise<void>;
     referenceNodes?: CanvasNodeData[];
     referenceConnections?: CanvasConnection[];
     onLocateReferenceNode?: (nodeId: string) => void;
@@ -75,7 +81,7 @@ type CanvasNodePromptPanelProps = {
     workspaceMode?: CanvasWorkspaceMode;
 };
 
-export function CanvasNodePromptPanel({ projectId, node, isRunning, onPromptChange, onConfigChange, onGenerate, onOpenGenerationHistory, onCreateGenerationReplacement, mentionReferences = [], onAddReference, onRemoveReference, onReorderReferences, onReplaceReference, onReplaceReferenceFiles, referenceNodes = [node], referenceConnections = [], onLocateReferenceNode, onClose, onNodeMouseDown, onImageSettingsOpenChange, workspaceMode = "professional" }: CanvasNodePromptPanelProps) {
+export function CanvasNodePromptPanel({ projectId, node, isRunning, onPromptChange, onConfigChange, onGenerate, onOpenGenerationHistory, onCreateGenerationReplacement, mentionReferences = [], onAddReference, onRemoveReference, onReorderReferences, onReplaceReference, onReplaceReferenceFiles, onSetVideoFrame, referenceNodes = [node], referenceConnections = [], onLocateReferenceNode, onClose, onNodeMouseDown, onImageSettingsOpenChange, workspaceMode = "professional" }: CanvasNodePromptPanelProps) {
     const globalConfig = useEffectiveConfig();
     const themeName = useActiveTheme();
     const theme = canvasThemes[themeName];
@@ -131,16 +137,34 @@ export function CanvasNodePromptPanel({ projectId, node, isRunning, onPromptChan
     const activeReferenceCount = activeReferences.length;
     const videoFrameOptions = resolvedMentionReferences.filter((item) => item.active && item.kind === "image").map((item) => ({ nodeId: item.nodeId, label: item.label, title: item.title, previewUrl: item.previewUrl }));
     const h3Model = isH3Model(config.model);
+    const videoOperation = resolveVideoOperation(requirements.input || { textCount: 0, imageCount: 0, videoCount: 0, audioCount: 0, characterCount: 0 }, node.metadata?.videoEditOperation, config);
+    const providerMode = mode === "video" ? providerVideoOperations(config, requirements.input)?.find(item => item.value === videoOperation) : undefined;
+    const hasVideoModeSelector = mode === "video" && availableModels.length > 0 && Boolean(providerVideoOperations(config)?.length);
     const videoReferenceInputs = activeReferences.flatMap((reference) => reference.kind === "skill" ? [] : [{ nodeId: reference.nodeId, type: reference.kind, title: reference.title }]);
-    const hasVideoPromptTools = mode === "video" && !simpleMode && (videoFrameOptions.length > 0 || (h3Model && videoReferenceInputs.some((input) => input.type !== "text")));
+    // 参考素材已在节点素材栏展示；这里只保留需要手动指定角色的首尾帧，避免再多一处素材汇总。
+    const showVideoFrameSlots = !simpleMode && providerMode?.referenceMode === "frames" && Boolean(onSetVideoFrame);
+    const frameCandidates = useMemo(() => showVideoFrameSlots ? buildCanvasResourceReferences(referenceNodes, referenceConnections, node.id).filter((reference) => reference.kind === "image" && reference.nodeId !== node.id) : [], [node.id, referenceConnections, referenceNodes, showVideoFrameSlots]);
+    const frameIds = resolveVideoFrameIds(videoFrameOptions.map((image) => image.nodeId), node.metadata, providerMode?.frameCount === 2);
+    const shelfReferences = showVideoFrameSlots ? resolvedMentionReferences.filter((reference) => reference.kind !== "image" || ![frameIds.first, frameIds.last].includes(reference.nodeId)) : resolvedMentionReferences;
+    const hasVideoPromptTools = mode === "video" && !simpleMode && !providerMode && (videoFrameOptions.length > 0 || (h3Model && videoReferenceInputs.some((input) => input.type !== "text")));
+    const videoFrameLabel = providerMode?.frameCount === 1 ? "首帧" : "首尾帧";
+    const videoInputHint = providerMode?.inputIssue ? <p role="status" className="px-2 text-[var(--fs-tiny)] leading-5" style={{ color: theme.node.muted }}>{providerMode.inputIssue}</p> : null;
+    const renderVideoFrameSlots = () => showVideoFrameSlots && onSetVideoFrame ? <CanvasVideoFrameSlots
+        metadata={node.metadata}
+        references={activeReferences}
+        availableReferences={frameCandidates}
+        endFrameSupported={providerMode?.frameCount === 2}
+        onChange={(role, source) => onSetVideoFrame(node.id, role, source, providerMode?.frameCount === 2)}
+        onMetadataChange={(patch) => onConfigChange(node.id, patch)}
+    /> : null;
     const renderVideoPromptTools = () => (
         <>
             <CanvasVideoPromptTools
                 metadata={node.metadata}
                 frameOptions={videoFrameOptions}
-                endFrameSupported={!isH3Style(config.model)}
-                referenceLabel={h3Model ? "参考生成" : undefined}
-                referenceMode={modelOptionName(config.model) === "minimax-h3" && h3VideoOperation(config.model, requirements.input!, node.metadata?.videoEditOperation) === "reference_to_video" ? "all" : "frames"}
+                endFrameSupported={providerMode ? providerMode.frameCount === 2 : !isH3Style(config.model)}
+                referenceLabel={providerMode?.referenceMode === "all" ? providerMode.label : h3Model ? "参考生成" : undefined}
+                referenceMode={providerMode ? providerMode.referenceMode === "frames" ? "frames" : "all" : modelOptionName(config.model) === "minimax-h3" && h3VideoOperation(config.model, requirements.input!, node.metadata?.videoEditOperation) === "reference_to_video" ? "all" : "frames"}
                 referenceSummary={requirements.input}
                 onMetadataChange={(patch) => onConfigChange(node.id, patch)}
             />
@@ -361,40 +385,50 @@ export function CanvasNodePromptPanel({ projectId, node, isRunning, onPromptChan
                 {renderSubmitButton(expanded)}
             </div>
         ) : (
-            <div className="canvas-node-composer-footer">
-                <div className={expanded ? "min-w-0 flex-1" : "canvas-node-composer-model"}>
-                    {availableModels.length ? (
-                        <ModelPicker
-                            className="!h-7 !w-full !min-w-0 !text-[var(--fs-tiny)] !font-normal [&_img]:!size-3 [&_.lucide]:!size-3"
-                            fullWidth
-                            config={config}
-                            value={config.model}
-                            onChange={(model) => {
-                                const patch = mode === "image" ? { model, ...defaultImageParamsForModel(config, model) } : { model };
-                                if (mode === "image" || mode === "video") {
-                                    const nextConfig = buildNodeConfig(globalConfig, { ...node, metadata: { ...node.metadata, ...patch } }, mode, { ...requirements, options: undefined });
-                                    if (mode === "image") rememberImageSettings({ model: nextConfig.model, ratio: nextConfig.size, quality: nextConfig.quality, count: nextConfig.count, transparentBackground: nextConfig.transparentBackground });
-                                    else rememberVideoSettings({ model: nextConfig.model, ratio: nextConfig.size, seconds: nextConfig.videoSeconds, videoQuality: nextConfig.vquality, generateAudio: nextConfig.videoGenerateAudio, watermark: nextConfig.videoWatermark });
-                                }
-                                onConfigChange(node.id, patch);
-                            }}
-                            capability={mode}
-                            requirements={resolvedRequirements}
-                            onMissingConfig={() => navigateToSettings({ section: "channels", continueCreation: true })}
-                            variant="creation"
-                            showConfiguredModelName
-                        />
-                    ) : (
-                        <button
-                            type="button"
-                            className="canvas-composer-model-picker flex !h-7 w-full min-w-0 items-center px-2 text-left !text-[var(--fs-tiny)] !font-normal"
-                            aria-label="暂无模型可用，连接内置算力"
-                            title="暂无模型可用，连接内置算力"
-                            onClick={() => navigateToSettings({ section: "channels", continueCreation: true })}
-                        >
-                            <span className="truncate">暂无模型可用，连接内置算力</span>
-                        </button>
-                    )}
+            <div className={`canvas-node-composer-footer${hasVideoModeSelector ? " flex-wrap" : ""}`}>
+                <div className={hasVideoModeSelector ? "flex min-w-0 max-w-full flex-wrap items-center gap-1" : `${expanded ? "min-w-0 flex-1" : "canvas-node-composer-model"} flex items-center gap-1`}>
+                    <div className={hasVideoModeSelector ? "min-w-0 max-w-full shrink-0" : "min-w-0 flex-1"}>
+                        {availableModels.length ? (
+                            <ModelPicker
+                                className={`${hasVideoModeSelector ? "!h-auto !min-h-7 !w-auto" : "!h-7 !w-full"} !min-w-0 !text-[var(--fs-tiny)] !font-normal [&_img]:!size-3 [&_.lucide]:!size-3`}
+                                fullWidth={!hasVideoModeSelector}
+                                fitContent={hasVideoModeSelector}
+                                config={config}
+                                value={config.model}
+                                onChange={(model) => {
+                                    const patch = { ...(mode === "image" ? defaultImageParamsForModel(config, model) : {}), ...generationModelMetadata(globalConfig, model, mode) };
+                                    if (mode === "image" || mode === "video") {
+                                        const nextConfig = buildNodeConfig(globalConfig, { ...node, metadata: { ...node.metadata, ...patch } }, mode, { ...requirements, options: undefined });
+                                        if (mode === "image") rememberImageSettings({ model: nextConfig.model, ratio: nextConfig.size, quality: nextConfig.quality, count: nextConfig.count, transparentBackground: nextConfig.transparentBackground });
+                                        else rememberVideoSettings({ model: nextConfig.model, ratio: nextConfig.size, seconds: nextConfig.videoSeconds, videoQuality: nextConfig.vquality, generateAudio: nextConfig.videoGenerateAudio, watermark: nextConfig.videoWatermark });
+                                    }
+                                    onConfigChange(node.id, patch);
+                                }}
+                                capability={mode}
+                                requirements={resolvedRequirements}
+                                onMissingConfig={() => navigateToSettings({ section: "channels", continueCreation: true })}
+                                variant="creation"
+                                showConfiguredModelName
+                            />
+                        ) : (
+                            <button
+                                type="button"
+                                className="canvas-composer-model-picker flex !h-7 w-full min-w-0 items-center px-2 text-left !text-[var(--fs-tiny)] !font-normal"
+                                aria-label="暂无模型可用，连接内置算力"
+                                title="暂无模型可用，连接内置算力"
+                                onClick={() => navigateToSettings({ section: "channels", continueCreation: true })}
+                            >
+                                <span className="truncate">暂无模型可用，连接内置算力</span>
+                            </button>
+                        )}
+                    </div>
+                    {hasVideoModeSelector ? <CanvasVideoOperationSelect
+                        compact
+                        config={config}
+                        input={requirements.input || { textCount: 0, imageCount: 0, videoCount: 0, audioCount: 0, characterCount: 0 }}
+                        value={node.metadata?.videoEditOperation}
+                        onChange={operation => onConfigChange(node.id, videoOperationMetadata(config, operation, videoFrameOptions.map((image) => image.nodeId)))}
+                    /> : null}
                 </div>
                 <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1">
                     <ReferenceToolsPopover
@@ -429,6 +463,7 @@ export function CanvasNodePromptPanel({ projectId, node, isRunning, onPromptChan
                             />
                             <CanvasImageSettingsPopover
                                 config={config}
+                                onProviderOptionsChange={providerOptions => onConfigChange(node.id, { providerOptions })}
                                 placement={expanded ? "topRight" : "topLeft"}
                                 buttonClassName="canvas-node-composer-settings-trigger [&>span]:min-w-0 [&_.lucide]:!size-3"
                                 onConfigChange={(key, value) => {
@@ -450,6 +485,11 @@ export function CanvasNodePromptPanel({ projectId, node, isRunning, onPromptChan
                             />
                             <CanvasVideoSettingsPopover
                                 config={config}
+                                onProviderOptionsChange={providerOptions => onConfigChange(node.id, { providerOptions })}
+                                parameterInput={{
+                                    operation: videoOperation,
+                                    references: { imageCount: (requirements.input?.imageCount || 0) + (requirements.input?.characterCount || 0), videoCount: requirements.input?.videoCount || 0, audioCount: requirements.input?.audioCount || 0 },
+                                }}
                                 taskConstraints={videoSettingsConstraints(config, {
                                     imageCount: requirements.input?.imageCount,
                                     characterCount: requirements.input?.characterCount,
@@ -468,6 +508,7 @@ export function CanvasNodePromptPanel({ projectId, node, isRunning, onPromptChan
                     ) : mode === "audio" ? (
                         <CanvasAudioSettingsPopover
                             config={config}
+                            onProviderOptionsChange={providerOptions => onConfigChange(node.id, { providerOptions })}
                             buttonClassName="canvas-node-composer-settings-trigger [&>span]:min-w-0 [&_.lucide]:!size-3"
                             onConfigChange={(key, value) => onConfigChange(node.id, audioConfigPatch(key, value))}
                         />
@@ -486,7 +527,7 @@ export function CanvasNodePromptPanel({ projectId, node, isRunning, onPromptChan
                 <div className={fill ? "canvas-node-composer-editor flex-1" : "canvas-node-composer-editor"} style={fill ? { minHeight: bounds.min } : { height, ...(expanded ? { flexShrink: 0 } : null) }}>
                     <ConnectedReferenceShelf
                         targetNodeId={node.id}
-                        references={resolvedMentionReferences}
+                        references={shelfReferences}
                         theme={theme}
                         onInsert={insertPromptReference}
                         onRemove={(reference) => onRemoveReference?.(node.id, reference)}
@@ -592,6 +633,8 @@ export function CanvasNodePromptPanel({ projectId, node, isRunning, onPromptChan
 
             {renderVideoToolStrip()}
 
+            {renderVideoFrameSlots()}
+
             <div className="canvas-node-composer-prompt-tools">
                 <CanvasPromptFontControl />
                 {canExpandPrompt ? <button type="button" className="canvas-node-composer-header-action grid size-6 place-items-center rounded-md" onClick={() => setExpandedPromptOpen(true)} aria-label="放大编辑提示词" title="放大编辑提示词"><Maximize2 className="size-3" /></button> : null}
@@ -608,10 +651,10 @@ export function CanvasNodePromptPanel({ projectId, node, isRunning, onPromptChan
                         style={{ color: theme.node.muted }}
                         onClick={() => setParamsExpanded(!paramsExpanded)}
                         aria-expanded={paramsExpanded}
-                        aria-label={paramsExpanded ? "收起参数" : "展开参数"}
+                        aria-label={`${paramsExpanded ? "收起" : "展开"}${providerMode ? videoFrameLabel : "参数"}`}
                     >
                         <SlidersHorizontal className="size-3" strokeWidth={1.8} />
-                        <span className="flex-1 text-left">参数</span>
+                        <span className="flex-1 text-left">{providerMode ? videoFrameLabel : "参数"}</span>
                         <ChevronDown className={`size-3 transition-transform duration-200 ${paramsExpanded ? "rotate-180" : ""}`} strokeWidth={1.8} />
                     </button>
                     {paramsExpanded ? (
@@ -622,6 +665,7 @@ export function CanvasNodePromptPanel({ projectId, node, isRunning, onPromptChan
                 </div>
             ) : null}
 
+            {videoInputHint}
             {renderComposerControls(false)}
 
             <Modal
@@ -645,12 +689,14 @@ export function CanvasNodePromptPanel({ projectId, node, isRunning, onPromptChan
                 <div ref={expandedModalRef} className="relative flex min-h-0 flex-col" style={{ ...composerTokens, color: theme.node.text, maxHeight: `calc(100dvh - ${PROMPT_EDITOR_VIEWPORT_MARGIN}px)`, ...(expandedModalSize ? { height: expandedModalSize.height } : null) }}>
                     <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-3">
                         <div className="shrink-0 pr-8">{renderComposerHeader(true)}</div>
+                        {renderVideoFrameSlots()}
                         {renderPromptEditor(true, Boolean(expandedModalSize))}
                         {hasVideoPromptTools ? (
                             <div className="canvas-node-composer-parameters shrink-0">
                                 {renderVideoPromptTools()}
                             </div>
                         ) : null}
+                        {videoInputHint}
                         <div className="shrink-0">{renderComposerControls(true)}</div>
                     </div>
                     <PromptModalResizeHandle size={expandedModalSize} measure={measureExpandedModalSize} onResize={setExpandedModalSize} accent={theme.node.muted} />

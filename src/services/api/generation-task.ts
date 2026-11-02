@@ -1,4 +1,9 @@
+import { resolveVideoOperation } from "@/lib/generation-operations";
 import { createClientId } from "@/lib/client-id";
+import { generationParameterInput, providerRequestParameters } from "@/lib/generation-parameters";
+import type { GenerationParameterInput } from "@/lib/generation-parameter-types";
+import { providerGenerationDefinition } from "@/lib/providers/generation-providers";
+import { modelProviderDefinition } from "@/lib/model-service-presets";
 import { createBrowserGenerationTask, usesBrowserVideoProvider } from "@/services/browser-generation-tasks";
 import { getMediaBlob } from "@/services/file-storage";
 import { resolveReferenceMediaDuration } from "@/lib/reference-media-metadata";
@@ -10,7 +15,7 @@ import { modelCapabilityConfigFor, VIDEO_CAPABILITIES_UNAVAILABLE } from "@/lib/
 import { grokImagePromptLimitError } from "@/lib/grok-image-prompt-limit";
 import { resolveGenerationWorkflowExecution, type GenerationWorkflowExecution } from "@/lib/generation-workflow-execution";
 import { isArkPlanBaseUrl } from "@/lib/seedance-video";
-import { portraitGenerationError, resolveVideoOperation } from "@/lib/model-selection";
+import { portraitGenerationError } from "@/lib/model-selection";
 import { logicalModelIDForConfig, modelOptionName, resolveModelChannel, resolveModelRequestConfig, type AiConfig } from "@/stores/use-config-store";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
@@ -24,10 +29,16 @@ export { logicalModelIDForConfig };
 
 export type BackendGenerationMode = "text" | "image" | "video" | "audio";
 
+export type BackendGeneratedImage = { dataUrl: string; url?: string; storageKey?: string; width?: number; height?: number; bytes?: number; mimeType?: string };
+
 export type BackendGenerationResult = {
     mode?: BackendGenerationMode;
-    images?: Array<{ dataUrl: string; url?: string; storageKey?: string; width?: number; height?: number; bytes?: number; mimeType?: string }>;
-    video?: { dataUrl: string; url?: string; storageKey?: string; previewUrl?: string; width?: number; height?: number; durationMs?: number; bytes?: number; mimeType?: string };
+    images?: BackendGeneratedImage[];
+    video?: {
+        dataUrl: string; url?: string; storageKey?: string; previewUrl?: string; width?: number; height?: number; durationMs?: number; bytes?: number; mimeType?: string;
+        /** 尾帧是视频的附属图片素材，独立持久化，不占用主视频输出索引。 */
+        lastFrame?: BackendGeneratedImage & { assetId?: string };
+    };
     audio?: { dataUrl: string; url?: string; storageKey?: string; durationMs?: number; bytes?: number; mimeType?: string; format?: string };
     text?: string;
     toolCalls?: Array<{ id: string; type: "function"; function: { name: string; arguments: string }; thoughtSignature?: string }>;
@@ -229,6 +240,7 @@ function generationOperation(options: BackendGenerationTaskOptions) {
             characterCount: 0,
         },
         options.metadata?.videoEditOperation as string | undefined,
+        options.config,
     );
 }
 
@@ -394,21 +406,25 @@ function backendGenerationTaskInput(options: BackendGenerationTaskOptions, prepa
                 ...(options.clientOperationId ? { clientOperationId: options.clientOperationId } : {}),
                 ...(options.retryOf ? { retryOf: options.retryOf } : {}),
                 ...(options.attemptGroupId ? { attemptGroupId: options.attemptGroupId } : {}),
-            }),
+            }, { operation: mode === "video" ? videoOperation : undefined, references: { imageCount: prepared.referenceImages.length, videoCount: prepared.referenceVideos.length, audioCount: prepared.referenceAudios.length } }),
         },
     };
 }
 
-function generationMetadata(config: AiConfig, metadata?: Record<string, unknown>) {
+function generationMetadata(config: AiConfig, metadata?: Record<string, unknown>, input: GenerationParameterInput = {}) {
     const channel = resolveModelChannel(config, config.model);
     const model = modelOptionName(config.model);
     const modelProfile = channel.modelProfiles?.find((item) => item.model === model);
     const protocol = modelProfile?.protocol || channel.interfaceType;
-    const defaults = modelProfile?.defaultOptions;
-    if (!protocol || !defaults || !Object.keys(defaults).length) return metadata;
+    const defaults = protocol ? config.providerOptions?.[protocol] ?? modelProfile?.defaultOptions : undefined;
+    if (!protocol) return metadata;
     const existing = metadata?.providerOptions && typeof metadata.providerOptions === "object" && !Array.isArray(metadata.providerOptions) ? (metadata.providerOptions as Record<string, unknown>) : {};
     const namespace = existing[protocol] && typeof existing[protocol] === "object" && !Array.isArray(existing[protocol]) ? (existing[protocol] as Record<string, unknown>) : {};
-    return { ...metadata, providerOptions: { ...existing, [protocol]: { ...defaults, ...namespace } } };
+    const requested = { ...defaults, ...namespace };
+    const values = modelProfile && providerGenerationDefinition(modelProviderDefinition(channel).id)
+        ? providerRequestParameters(channel, modelProfile, requested, generationParameterInput(config, modelProfile, input)) : requested;
+    if (!Object.keys(values).length && !Object.keys(existing).length) return metadata;
+    return { ...metadata, providerOptions: { [protocol]: values } };
 }
 
 async function prepareBackendMediaReference(media: ReferenceVideo | ReferenceAudio) {

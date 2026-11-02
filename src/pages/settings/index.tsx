@@ -15,7 +15,7 @@ import { PageHeader } from "@/components/layout/workspace-page";
 type ConfigSectionKey = "channels" | "models" | "storage" | "diagnostics";
 
 export function isConfigSection(value: string | null): value is ConfigSectionKey {
-    return value === "channels" || value === "storage" || value === "diagnostics";
+    return value === "channels" || value === "models" || value === "storage" || value === "diagnostics";
 }
 
 export default function SettingsPage() {
@@ -25,7 +25,8 @@ export default function SettingsPage() {
     const requestedSection = searchParams.get("section");
     const customChannelsEnabled = useUserStore((state) => state.features.customChannelsEnabled);
     const initialSection = isConfigSection(requestedSection) ? requestedSection : "channels";
-    const [activeTab, setActiveTab] = useState<ConfigSectionKey>(initialSection === "models" ? "channels" : initialSection);
+    const [activeTab, setActiveTab] = useState<ConfigSectionKey>(initialSection);
+    const [connectionEditing, setConnectionEditing] = useState(false);
     const config = useConfigStore((state) => state.config);
     const effectiveConfig = useEffectiveConfig();
     const updateConfig = useConfigStore((state) => state.updateConfig);
@@ -41,6 +42,10 @@ export default function SettingsPage() {
     }, [requestedSection]);
 
     const selectSection = (section: ConfigSectionKey) => {
+        if (connectionEditing && section !== "channels" && section !== "diagnostics") {
+            message.warning("请先保存或取消当前连接的更改");
+            return;
+        }
         setActiveTab(section);
         const next = new URLSearchParams(searchParams);
         next.set("section", section);
@@ -48,16 +53,17 @@ export default function SettingsPage() {
     };
 
     const finishConfig = () => {
+        if (connectionEditing) { message.warning("请先保存或取消当前连接的更改"); return; }
         const invalidChannel = customChannelsEnabled ? userChannels.find((channel) => channelValidationError(channel)) : undefined;
         if (invalidChannel) {
             selectSection("channels");
-            message.warning(`${invalidChannel.name || "未命名渠道"}：${channelValidationError(invalidChannel)}`);
+            message.warning(`${invalidChannel.name || "未命名连接"}：${channelValidationError(invalidChannel)}`);
             focusInvalidChannelField(invalidChannel);
             return;
         }
         if (!effectiveConfig.channels.some(isChannelReady)) {
             selectSection("channels");
-            message.error(customChannelsEnabled ? (shouldPromptContinue ? "请先完成至少一个渠道的 Base URL、API Key 和模型配置" : "当前没有可用渠道，请先完成连接信息和模型配置") : "当前没有可用的系统模型，请联系管理员配置系统渠道");
+            message.error(customChannelsEnabled ? (shouldPromptContinue ? "请先完成至少一个连接的 Base URL、API Key 和模型配置" : "当前没有可用连接，请先完成连接信息和模型配置") : "当前没有可用的系统模型，请联系管理员配置系统连接");
             return;
         }
         message.success("配置已保存，正在返回创作页面");
@@ -67,15 +73,7 @@ export default function SettingsPage() {
     const panes: Record<Exclude<ConfigSectionKey, "diagnostics">, ReactNode> = {
         channels: (
             <SettingsPane>
-                <ChannelSettingsPane onOpenDiagnostics={() => selectSection("diagnostics")} />
-                <div className="settings-section model-default-section">
-                    <div className="settings-pane-header">
-                        <div className="min-w-0">
-                            <h2>默认模型</h2>
-                        </div>
-                    </div>
-                    <ModelDefaultGrid config={effectiveConfig} onChange={(key, model) => updateConfig(key, model)} />
-                </div>
+                <ChannelSettingsPane onEditingChange={setConnectionEditing} onOpenDiagnostics={() => selectSection("diagnostics")} />
             </SettingsPane>
         ),
         storage: (
@@ -94,8 +92,8 @@ export default function SettingsPage() {
             <SettingsPane>
                 <div className="settings-pane-header">
                     <div className="min-w-0">
-                        <h2>模型选择</h2>
-                        <p>按领域选择默认模型；模型能力与请求协议在渠道“模型与能力”中配置。</p>
+                        <h2>默认模型</h2>
+                        <p>应用级设置：选择新建内容及助手默认使用哪个模型。单个模型的参数默认值在连接管理的模型详情中设置。</p>
                     </div>
                 </div>
                 <div className="settings-section">
@@ -107,11 +105,17 @@ export default function SettingsPage() {
 
     return (
         <main className="settings-page app-workspace-page app-user-workspace app-section-page flex h-full min-h-0 flex-col text-foreground">
+            <nav className="flex shrink-0 flex-wrap gap-2 border-b border-[var(--workspace-border)] px-4 py-3 sm:px-6" aria-label="设置导航">
+                {([{ key: "channels", label: "连接管理" }, { key: "models", label: "默认模型" }, { key: "storage", label: "存储设置" }] as const).map(item => {
+                    const selected = (activeTab === "diagnostics" ? "channels" : activeTab) === item.key;
+                    return <Button key={item.key} type={selected ? "primary" : "text"} aria-current={selected ? "page" : undefined} disabled={connectionEditing && !selected} onClick={() => selectSection(item.key)}>{item.label}</Button>;
+                })}
+            </nav>
                 {shouldPromptContinue ? <div className="settings-topbar shrink-0">
                     <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
                         {shouldPromptContinue ? <>
-                        <Button icon={<ArrowLeft className="size-4" />} onClick={() => navigate(-1)}>返回创作</Button>
-                        <Button type="primary" onClick={finishConfig}>保存并返回</Button>
+                        <Button disabled={connectionEditing} icon={<ArrowLeft className="size-4" />} onClick={() => navigate(-1)}>返回创作</Button>
+                        <Button disabled={connectionEditing} type="primary" onClick={finishConfig}>完成并返回</Button>
                         </> : null}
                     </div>
                 </div> : null}

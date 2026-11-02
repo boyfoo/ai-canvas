@@ -44,8 +44,7 @@ export default function CanvasLayout() {
                 <Link to="/assets">素材</Link>
                 <Link to="/skills">技能</Link>
                 <Link to="/plugins">扩展</Link>
-                <Link to="/settings?section=channels">模型设置</Link>
-                <Link to="/settings?section=storage">参考素材与深度服务</Link>
+                <Link to="/settings?section=channels">设置</Link>
             </nav> : null}
             <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden"><Outlet /></div>
             <WorkspaceOperationProgress />
