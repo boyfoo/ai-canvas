@@ -93,7 +93,7 @@ export function VideoSettingsPanel({ config: originalConfig, onConfigChange, the
                                 <button
                                     key={value}
                                     type="button"
-                                    className="flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md px-1 text-[var(--fs-label)] font-medium transition-colors hover:brightness-110 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1"
+                                    className="flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md px-1 !text-[length:var(--fs-caption)] font-medium transition-colors hover:brightness-110 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1"
                                     style={{ background: ratio === value ? theme.toolbar.activeBg : "transparent", color: theme.node.text, outlineColor: theme.node.muted }}
                                     onMouseDown={(event) => event.stopPropagation()}
                                     onClick={() => onConfigChange("size", value)}
@@ -185,18 +185,18 @@ function SeedanceVideoSettingsPanel({ config, profile, onConfigChange, theme, sh
                 {profile.ratios.length > 0 ? (
                 <SettingGroup title="比例" color={theme.node.muted}>
                     {taskConstraints?.ratioLabel ? (
-                        <div className="flex min-h-8 w-fit max-w-full items-center justify-center rounded-md px-3 py-1.5 text-center text-[var(--fs-tiny)] font-medium leading-5 [overflow-wrap:anywhere]" style={{ background: theme.toolbar.itemHover }}>
+                        <div className="flex min-h-8 w-fit max-w-full items-center justify-center rounded-md px-3 py-1.5 text-center text-[length:var(--fs-caption)] font-medium leading-5 [overflow-wrap:anywhere]" style={{ background: theme.toolbar.itemHover }}>
                             {taskConstraints.ratioLabel}
                         </div>
                     ) : (
                     <div className="grid grid-cols-4 gap-1.5">
                         {profile.ratios.map((value) => {
-                            const item = { value, label: value };
+                            const item = { value, label: value === "adaptive" ? "自适应" : value };
                             return (
                                 <button
                                     key={item.value}
                                     type="button"
-                                    className="flex h-11 min-w-0 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-md px-1 text-[var(--fs-tiny)] font-medium leading-none transition-colors hover:brightness-110 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1"
+                                    className="flex h-11 min-w-0 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-md px-1 !text-[length:var(--fs-caption)] font-medium leading-none transition-colors hover:brightness-110 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1"
                                     style={{ background: ratio === item.value ? theme.toolbar.activeBg : "transparent", color: theme.node.text, outlineColor: theme.node.muted }}
                                     onMouseDown={(event) => event.stopPropagation()}
                                     onClick={() => onConfigChange("size", item.value)}
@@ -264,7 +264,7 @@ export function normalizeVideoSizeValue(value: string) {
 
 function DimensionValue({ prefix, value, theme }: { prefix: string; value: number; theme: CanvasTheme }) {
     return (
-        <div className="flex h-8 overflow-hidden rounded-md text-[var(--fs-label)]" style={{ background: theme.toolbar.itemHover, color: theme.node.text }}>
+        <div className="flex h-8 overflow-hidden rounded-md text-[length:var(--fs-caption)]" style={{ background: theme.toolbar.itemHover, color: theme.node.text }}>
             <span className="grid w-7 place-items-center" style={{ color: theme.node.muted }}>
                 {prefix}
             </span>
@@ -283,7 +283,7 @@ function DurationInput({ value, min, max, theme, onChange, continuous = false }:
     };
 
     return (
-        <label className="flex h-8 w-20 shrink-0 items-center overflow-hidden rounded-md border text-[var(--fs-label)]" style={{ background: theme.toolbar.itemHover, borderColor: theme.toolbar.border, color: theme.node.text }}>
+        <label className="flex h-8 w-20 shrink-0 items-center overflow-hidden rounded-md border text-[length:var(--fs-caption)]" style={{ background: theme.toolbar.itemHover, borderColor: theme.toolbar.border, color: theme.node.text }}>
             <input
                 key={`${min}-${value}`}
                 type="number"
@@ -365,7 +365,7 @@ function DurationRangeControl({ value, min, max, step, theme, onChange, continuo
                 />
                 <DurationInput value={value} min={min} max={max} theme={theme} onChange={onChange} continuous={continuous} />
             </div>
-            <div className="flex justify-between px-0.5 text-[var(--fs-tiny)]" style={{ color: theme.node.muted }}>
+            <div className="flex justify-between px-0.5 text-[length:var(--fs-label)]" style={{ color: theme.node.muted }}>
                 <span>{min}s</span>
                 <span>{max}s</span>
             </div>

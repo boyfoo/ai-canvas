@@ -576,7 +576,7 @@
     /* 字号
        注意：Tailwind v4 的字号命名空间是 --text-*，--font-size-* 不被识别，
        因此下面这组声明不会生成 text-micro / text-caption 之类的工具类。
-       组件请沿用既有惯例直接引用 Primitive：text-[var(--fs-label)]、text-[var(--fs-caption)] 等。 */
+       组件直接引用 Primitive 时须指定长度：text-[length:var(--fs-label)] 等，避免被识别为颜色。 */
     --font-size-micro: var(--fs-micro);
     --font-size-tiny: var(--fs-tiny);
     --font-size-label: var(--fs-label);
@@ -1049,7 +1049,7 @@
     --canvas-composer-control-surface: color-mix(in srgb, var(--foreground) 5%, transparent);
     --canvas-composer-control-hover: color-mix(in srgb, var(--foreground) 8%, transparent);
     --canvas-composer-shadow: var(--elevation-card);
-    --canvas-composer-settings-width: 138px;
+    --canvas-composer-settings-width: 148px;
     --canvas-mention-menu-max-height: 320px;
     --canvas-mention-search-height: 38px;
     --canvas-mention-item-height: 38px;
@@ -11053,7 +11053,7 @@ html:not(.dark) .creation-studio-control:hover,
         border-radius: var(--r-md) !important;
         padding-inline: var(--space-2) !important;
         box-shadow: none !important;
-        font-size: var(--fs-tiny) !important;
+        font-size: var(--fs-caption) !important;
         font-weight: 400 !important;
     }
 

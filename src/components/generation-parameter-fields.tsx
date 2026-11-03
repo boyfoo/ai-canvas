@@ -119,7 +119,7 @@ export function CanvasProviderParameterFields({ config, theme, input, onChange }
     };
     return (
         <details className="mt-3 space-y-3" style={{ color: theme.node.text }}>
-            <summary className="cursor-pointer text-[var(--fs-tiny)] font-semibold" style={{ color: theme.node.muted }}>
+            <summary className="cursor-pointer text-[length:var(--fs-label)] font-semibold" style={{ color: theme.node.muted }}>
                 更多参数
             </summary>
             {fields.map((field) => {
@@ -156,7 +156,7 @@ export function CanvasProviderParameterFields({ config, theme, input, onChange }
                                 max={field.max}
                                 step={field.step}
                                 maxLength={field.maxLength}
-                                className="h-8 w-full min-w-0 rounded-md border px-2 text-[var(--fs-label)] outline-none disabled:opacity-35"
+                                className="h-8 w-full min-w-0 rounded-md border px-2 !text-[length:var(--fs-caption)] outline-none disabled:opacity-35"
                                 style={{ background: theme.toolbar.itemHover, borderColor: theme.toolbar.border, color: theme.node.text }}
                                 value={value === undefined ? "" : String(value)}
                                 placeholder="使用服务默认值"
@@ -164,7 +164,7 @@ export function CanvasProviderParameterFields({ config, theme, input, onChange }
                             />
                         )}
                         {field.help || field.disabled ? (
-                            <p className="text-[var(--fs-tiny)] leading-relaxed" style={{ color: theme.node.muted }}>
+                            <p className="text-[length:var(--fs-label)] leading-relaxed" style={{ color: theme.node.muted }}>
                                 {field.disabled || field.help}
                             </p>
                         ) : null}
@@ -175,14 +175,14 @@ export function CanvasProviderParameterFields({ config, theme, input, onChange }
     );
 }
 
-// 这些控件从原视频面板提取，通用参数和扩展参数复用相同样式。
+// 通用参数和扩展参数复用相同样式；字号须标为 length，原生控件用 ! 覆盖 AntD 的层外 reset。
 export function CanvasParameterOption({ selected, disabled = false, theme, onClick, children }: { selected: boolean; disabled?: boolean; theme: CanvasTheme; onClick: () => void; children: ReactNode }) {
     return (
         <button
             type="button"
             disabled={disabled}
             aria-pressed={selected}
-            className="h-8 cursor-pointer whitespace-nowrap rounded-md px-1 text-[var(--fs-label)] font-medium leading-none transition-colors hover:brightness-110 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1 disabled:cursor-not-allowed disabled:opacity-35"
+            className="h-8 cursor-pointer whitespace-nowrap rounded-md px-1 !text-[length:var(--fs-caption)] font-medium leading-none transition-colors hover:brightness-110 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1 disabled:cursor-not-allowed disabled:opacity-35"
             style={{ background: selected ? theme.toolbar.activeBg : "transparent", color: theme.node.text, outlineColor: theme.node.muted }}
             onMouseDown={(event) => event.stopPropagation()}
             onClick={onClick}
@@ -195,7 +195,7 @@ export function CanvasParameterOption({ selected, disabled = false, theme, onCli
 export function CanvasParameterGroup({ title, color, children }: { title: string; color: string; children: ReactNode }) {
     return (
         <div className="space-y-1.5">
-            <div className="text-[var(--fs-tiny)] font-semibold" style={{ color }}>
+            <div className="text-[length:var(--fs-label)] font-semibold" style={{ color }}>
                 {title}
             </div>
             {children}
@@ -206,7 +206,7 @@ export function CanvasParameterGroup({ title, color, children }: { title: string
 export function CanvasParameterSwitch({ label, checked, theme, disabled, onChange }: { label: string; checked: boolean; theme: CanvasTheme; disabled?: boolean; onChange: (checked: boolean) => void }) {
     return (
         <div className="flex h-8 items-center justify-between gap-2">
-            <span className="min-w-0 whitespace-nowrap text-[var(--fs-label)]" style={{ color: theme.node.text }}>
+            <span className="min-w-0 whitespace-nowrap text-[length:var(--fs-caption)]" style={{ color: theme.node.text }}>
                 {label}
             </span>
             <span className="shrink-0" onMouseDown={(event) => event.stopPropagation()}>
