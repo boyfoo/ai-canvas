@@ -9535,15 +9535,23 @@ html:not(.dark) .creation-studio-control:hover,
         }
     }
 
-    /* Only a valid connection approach tilts; selection and ordinary hover stay flat. */
-    .canvas-node-shell[data-connection-tilt="true"] {
-        transform: perspective(900px) rotateX(var(--connection-tilt-x)) rotateY(var(--connection-tilt-y));
+    /* 接收连线的边界不依赖选中/聚焦优先级；减少动态效果时仍保留可连接提示。 */
+    .canvas-node-shell[data-connection-receiving="true"] {
+        border-color: transparent !important;
+        outline: 2px solid var(--connection-target-stroke);
+        outline-offset: 0;
+    }
+
+    /* 只有当前目标与短暂回正阶段由 Motion 接管变换，不再叠加 CSS 过渡。 */
+    .canvas-node-motion-surface[data-connection-motion="true"] {
+        transition: none;
         will-change: transform;
     }
 
-    .no-motion .canvas-node-shell[data-connection-tilt="true"] {
-        transform: none;
+    .no-motion .canvas-node-motion-surface[data-connection-motion="true"] {
+        transform: none !important;
         transition: none;
+        will-change: auto;
     }
 
     /* Do not set pointer-events here. The unselected host uses
@@ -11571,8 +11579,8 @@ html:not(.dark) .creation-studio-control:hover,
            mounted nodes. Overlap also promotes unmarked siblings, so partial
            promotion in a larger world can exceed WebKit's RemoteLayerTree IPC
            limit. Larger windows keep normal rendering and all their nodes. */
-        [data-canvas-world-raster-layer]:not(:has(> .node-element:nth-of-type(81))) > .node-element > .canvas-node-external-header,
-        [data-canvas-world-raster-layer]:not(:has(> .node-element:nth-of-type(81))) > .node-element > .canvas-node-shell {
+        [data-canvas-world-raster-layer]:not(:has(> .node-element:nth-of-type(81))) > .node-element > .canvas-node-motion-surface > .canvas-node-external-header,
+        [data-canvas-world-raster-layer]:not(:has(> .node-element:nth-of-type(81))) > .node-element > .canvas-node-motion-surface > .canvas-node-shell {
             will-change: transform;
         }
     }
@@ -11795,6 +11803,7 @@ html:not(.dark) .creation-studio-control:hover,
     .aceternity-dock-command,
     .aceternity-floating-panel,
     .canvas-menu-item,
+    .canvas-node-motion-surface,
     .canvas-node-shell,
     .canvas-frame-shell,
     .canvas-folder-preview,

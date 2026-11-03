@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { AlertCircle, BookOpenCheck, CheckCircle2, ChevronRight, Clapperboard, Copy, Download, FileText, GripVertical, Image as ImageIcon, Lock, Maximize2, Move3d, Music2, Pencil, RefreshCw, ScanSearch, Settings2, Star, Trash2, Video, WandSparkles } from "lucide-react";
 
 import { useCanvasNodeActions } from "./canvas-node-action-context";
+import { CanvasConnectionGlyph } from "./canvas-connection-glyph";
+import { useCanvasConnectionFeedback } from "./use-canvas-connection-feedback";
 import { canvasNodeFailureView } from "@/lib/canvas/canvas-node-failure-view";
 
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -163,6 +165,7 @@ export const CanvasNode = React.memo(function CanvasNode({
     const showOutputConnection = getNodeDefinition(data.type)?.showOutputConnection !== false;
     const scriptMinHeight = data.type === CanvasNodeType.Script ? storyboardMinNodeHeight(data.metadata?.storyboardComposerHeight) : null;
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const motionSurfaceRef = useRef<HTMLDivElement>(null);
     const resizeRef = useRef({
         isResizing: false,
         corner: "bottom-right" as ResizeCorner,
@@ -298,6 +301,7 @@ export const CanvasNode = React.memo(function CanvasNode({
 
     const connectionTilt = isConnectionTarget && !reduceMediaEffects && !dragOffset
         ? canvasConnectionTilt(data, connectionApproach) : undefined;
+    useCanvasConnectionFeedback(motionSurfaceRef, connectionTilt);
 
     return (
         <div
@@ -352,233 +356,234 @@ export const CanvasNode = React.memo(function CanvasNode({
             }}
             onContextMenu={(event) => onContextMenu(event, data.id)}
         >
-            {!data.metadata?.reusableWorkflow ? <NodeExternalHeader
-                node={data}
-                scale={scale}
-                dimensionLabel={null}
-                active={isSelected || isFocusRelated}
-                editable={!readOnly && !data.metadata?.locked && Boolean(onTitleChange)}
-                editing={isEditingTitle}
-                draft={titleDraft}
-                theme={theme}
-                onDraftChange={setTitleDraft}
-                onDragStart={readOnly ? undefined : (event) => onMouseDown(event, data.id)}
-                onEdit={() => setIsEditingTitle(true)}
-                onCommit={commitTitle}
-                onCancel={() => { setTitleDraft(data.title); setIsEditingTitle(false); }}
-            /> : null}
-            <div
-                className="canvas-node-shell relative h-full w-full overflow-visible rounded-[var(--node-radius)]"
-                data-node-selected={isSelected ? "true" : "false"}
-                data-node-state={nodeState}
-                data-connection-tilt={connectionTilt ? "true" : undefined}
-                data-state={data.metadata?.status || (isActive ? "active" : isRelated ? "related" : "idle")}
-                style={{
-                    background: hasImageContent || hasVideoContent || isDirectorNode ? "transparent" : theme.node.fill,
-                    // 固定占位但不绘制描边，避免聚焦切换时边框宽度变化造成白边跳动。
-                    border: isComposerNode || isDirectorNode ? "0" : `1px solid ${isSelected || isFocusRelated || isConnectionTarget ? theme.node.activeStroke : "transparent"}`,
-                    boxShadow: isComposerNode || isDirectorNode ? "none" : isSelected || isFocusRelated ? theme.node.hoverShadow : theme.node.shadow,
-                    "--connection-tilt-x": `${connectionTilt?.rotateX || 0}deg`,
-                    "--connection-tilt-y": `${connectionTilt?.rotateY || 0}deg`,
-                    transformOrigin: connectionTilt?.origin,
-                } as React.CSSProperties}
-                onMouseDown={(event) => onMouseDown(event, data.id)}
-                onDoubleClick={(event) => {
-                    if (isBatchRoot) {
-                        event.stopPropagation();
-                        onToggleBatch?.(data.id);
-                        return;
-                    }
-                    if (data.type === CanvasNodeType.Image && hasImageContent) {
-                        event.stopPropagation();
-                        onViewImage?.(data);
-                        return;
-                    }
-                    if (data.metadata?.directorSceneId) {
-                        event.stopPropagation();
-                        return;
-                    }
-                    if (data.type === CanvasNodeType.Drawing) {
-                        event.stopPropagation();
-                        onOpenDrawing?.(data);
-                        return;
-                    }
-                    if (!readOnly && data.type === CanvasNodeType.Text && data.metadata?.workflowKind === "character" && data.metadata.characterAssetId) {
-                        event.stopPropagation();
-                        onOpenTextEditor?.(data);
-                        return;
-                    }
-                    if (readOnly || data.type !== CanvasNodeType.Text) return;
-                    event.stopPropagation();
-                    setIsEditingContent(true);
-                }}
-            >
+            {/* 标题与卡片共用反馈层；实际节点位置、侧边连接点仍留在稳定的根层。 */}
+            <div ref={motionSurfaceRef} className="canvas-node-motion-surface relative h-full w-full overflow-visible" style={{ transformOrigin: "center center" }}>
+                {!data.metadata?.reusableWorkflow ? <NodeExternalHeader
+                    node={data}
+                    scale={scale}
+                    dimensionLabel={null}
+                    active={isSelected || isFocusRelated}
+                    editable={!readOnly && !data.metadata?.locked && Boolean(onTitleChange)}
+                    editing={isEditingTitle}
+                    draft={titleDraft}
+                    theme={theme}
+                    onDraftChange={setTitleDraft}
+                    onDragStart={readOnly ? undefined : (event) => onMouseDown(event, data.id)}
+                    onEdit={() => setIsEditingTitle(true)}
+                    onCommit={commitTitle}
+                    onCancel={() => { setTitleDraft(data.title); setIsEditingTitle(false); }}
+                /> : null}
                 <div
-                    className={`relative flex h-full w-full items-center justify-center rounded-[inherit] ${annotationActive || maskEditActive || (imageCropActive && hasImageContent) || (videoCropActive && hasVideoContent) || isBatchRoot || data.type === CanvasNodeType.Script || data.type === CanvasNodeType.BatchTable || data.type === CanvasNodeType.Upscale || isComposerNode ? "overflow-visible" : "overflow-hidden"}`}
-                    style={
-                        {
-                            background: hasImageContent || hasVideoContent || hasAudioContent || isDirectorNode ? "transparent" : theme.node.fill,
-                            "--batch-from-x": `${batchMotion?.x || 0}px`,
-                            "--batch-from-y": `${batchMotion?.y || 0}px`,
-                            "--batch-from-rotate": `${6 + (batchMotion?.index || 0) * 4}deg`,
-                            animation: isBatchChild && (batchClosing || batchOpening) ? (batchClosing ? `canvas-batch-child-out var(--motion-dur-base-calc) var(--motion-ease-in-out) both` : `canvas-batch-child-in var(--motion-dur-slow-calc) var(--motion-ease-out) both`) : undefined,
-                            animationDelay: isBatchChild && (batchClosing || batchOpening) ? `${batchClosing ? 0 : 45 + (batchMotion?.index || 0) * 24}ms` : undefined,
-                        } as React.CSSProperties
-                    }
+                    className="canvas-node-shell relative h-full w-full overflow-visible rounded-[var(--node-radius)]"
+                    data-node-selected={isSelected ? "true" : "false"}
+                    data-node-state={nodeState}
+                    data-connection-receiving={isConnectionTarget && connectionApproach ? "true" : undefined}
+                    data-state={data.metadata?.status || (isActive ? "active" : isRelated ? "related" : "idle")}
+                    style={{
+                        background: hasImageContent || hasVideoContent || isDirectorNode ? "transparent" : theme.node.fill,
+                        // 固定占位但不绘制描边，避免聚焦切换时边框宽度变化造成白边跳动。
+                        border: isComposerNode || isDirectorNode ? "0" : `1px solid ${isSelected || isFocusRelated || isConnectionTarget ? theme.node.activeStroke : "transparent"}`,
+                        boxShadow: isComposerNode || isDirectorNode ? "none" : isSelected || isFocusRelated || isConnectionTarget ? theme.node.hoverShadow : theme.node.shadow,
+                        "--connection-target-stroke": theme.node.activeStroke,
+                    } as React.CSSProperties}
+                    onMouseDown={(event) => onMouseDown(event, data.id)}
+                    onDoubleClick={(event) => {
+                        if (isBatchRoot) {
+                            event.stopPropagation();
+                            onToggleBatch?.(data.id);
+                            return;
+                        }
+                        if (data.type === CanvasNodeType.Image && hasImageContent) {
+                            event.stopPropagation();
+                            onViewImage?.(data);
+                            return;
+                        }
+                        if (data.metadata?.directorSceneId) {
+                            event.stopPropagation();
+                            return;
+                        }
+                        if (data.type === CanvasNodeType.Drawing) {
+                            event.stopPropagation();
+                            onOpenDrawing?.(data);
+                            return;
+                        }
+                        if (!readOnly && data.type === CanvasNodeType.Text && data.metadata?.workflowKind === "character" && data.metadata.characterAssetId) {
+                            event.stopPropagation();
+                            onOpenTextEditor?.(data);
+                            return;
+                        }
+                        if (readOnly || data.type !== CanvasNodeType.Text) return;
+                        event.stopPropagation();
+                        setIsEditingContent(true);
+                    }}
                 >
-                    {/* 仅在执行中或异常时显示状态；成功来源由内部元数据保留，不占用卡片视觉层。 */}
-                    {data.metadata?.status && data.metadata.status !== "idle" && data.metadata.status !== "success" && data.type !== CanvasNodeType.Frame ? (
-                        <NodeStatusBadge status={data.metadata.status} resultPending={failureView.canReload} />
-                    ) : null}
-                    <CanvasNodeContent
-                        node={data}
-                        theme={theme}
-                        isEditingContent={isEditingContent}
-                        textareaRef={textareaRef}
-                        isBatchRoot={isBatchRoot}
-                        batchCount={batchCount}
-                        batchPreviewNodes={batchPreviewNodes}
-                        batchExpanded={batchExpanded}
-                        batchOpening={batchOpening}
-                        batchRecovering={batchRecovering}
-                        renderNodeContent={renderNodeContent}
-                        drawingProjectId={drawingProjectId}
-                        projectId={drawingProjectId}
-                        mentionReferences={mentionReferences}
-                        onContentChange={onContentChange}
-                        onStopEditing={() => setIsEditingContent(false)}
-                        onRetry={onRetry}
-                        onReloadResource={onReloadResource}
-                        onOpenTaskDetails={onOpenTaskDetails}
-                        onCancelTask={onCancelTask}
-                        onToggleBatch={() => onToggleBatch?.(data.id)}
-                        reduceMediaEffects={reduceMediaEffects}
-                        mediaActive={mediaActive}
-                        scale={scale}
-                        onMediaPlayRequest={onMediaPlayRequest}
-                    />
-                    {imageCropActive && hasImageContent ? (
-                        <CanvasImageCropEditor
-                            imageUrl={data.metadata?.content || ""}
-                            imageDimensions={{ width: Math.max(1, data.metadata?.naturalWidth || data.width), height: Math.max(1, data.metadata?.naturalHeight || data.height) }}
-                            onCancel={() => onCancelImageCrop?.()}
-                            onConfirm={(crop) => onConfirmImageCrop?.(data, crop)}
-                        />
-                    ) : null}
-                    {annotationActive && hasImageContent ? (
-                        <CanvasImageAnnotationEditor
-                            image={{ url: data.metadata?.content || "", storageKey: data.metadata?.storageKey }}
-                            scale={scale}
-                            onCancel={() => onCancelAnnotation?.()}
-                            onConfirm={(dataUrl) => onConfirmAnnotation?.(data, dataUrl)}
-                        />
-                    ) : null}
-                    {maskEditActive && maskEditConfig && hasImageContent ? (
-                        <CanvasImageMaskEditor
-                            imageDimensions={{ width: Math.max(1, data.metadata?.naturalWidth || data.width), height: Math.max(1, data.metadata?.naturalHeight || data.height) }}
-                            scale={scale}
-                            config={maskEditConfig}
-                            onCancel={() => onCancelMaskEdit?.()}
-                            onConfirm={(payload) => onConfirmMaskEdit?.(data, payload)}
-                        />
-                    ) : null}
-                    {videoCropActive && hasVideoContent ? (
-                        <CanvasVideoCropEditor
-                            videoUrl={data.metadata?.content || ""}
-                            videoDimensions={{
-                                width: Math.max(1, data.metadata?.naturalWidth || data.width),
-                                height: Math.max(1, data.metadata?.naturalHeight || data.height),
-                            }}
-                            onCancel={() => onCancelVideoCrop?.()}
-                            onConfirm={(crop, sourceDimensions) => onConfirmVideoCrop?.(data, crop, sourceDimensions)}
-                        />
-                    ) : null}
-                </div>
-
-                {data.type === CanvasNodeType.Text && data.metadata?.workflowKind !== "character" && !readOnly ? (
                     <div
-                        className={`canvas-node-inline-edit absolute bottom-[10%] left-1/2 z-[var(--node-z-overlay)] -translate-x-1/2 motion-safe:transition motion-safe:duration-200 ${isSelected ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0"}`}
-                        aria-hidden={!isSelected}
-                        onMouseDown={(event) => event.stopPropagation()}
-                        onPointerDown={(event) => event.stopPropagation()}
+                        className={`relative flex h-full w-full items-center justify-center rounded-[inherit] ${annotationActive || maskEditActive || (imageCropActive && hasImageContent) || (videoCropActive && hasVideoContent) || isBatchRoot || data.type === CanvasNodeType.Script || data.type === CanvasNodeType.BatchTable || data.type === CanvasNodeType.Upscale || isComposerNode ? "overflow-visible" : "overflow-hidden"}`}
+                        style={
+                            {
+                                background: hasImageContent || hasVideoContent || hasAudioContent || isDirectorNode ? "transparent" : theme.node.fill,
+                                "--batch-from-x": `${batchMotion?.x || 0}px`,
+                                "--batch-from-y": `${batchMotion?.y || 0}px`,
+                                "--batch-from-rotate": `${6 + (batchMotion?.index || 0) * 4}deg`,
+                                animation: isBatchChild && (batchClosing || batchOpening) ? (batchClosing ? `canvas-batch-child-out var(--motion-dur-base-calc) var(--motion-ease-in-out) both` : `canvas-batch-child-in var(--motion-dur-slow-calc) var(--motion-ease-out) both`) : undefined,
+                                animationDelay: isBatchChild && (batchClosing || batchOpening) ? `${batchClosing ? 0 : 45 + (batchMotion?.index || 0) * 24}ms` : undefined,
+                            } as React.CSSProperties
+                        }
                     >
+                        {/* 仅在执行中或异常时显示状态；成功来源由内部元数据保留，不占用卡片视觉层。 */}
+                        {data.metadata?.status && data.metadata.status !== "idle" && data.metadata.status !== "success" && data.type !== CanvasNodeType.Frame ? (
+                            <NodeStatusBadge status={data.metadata.status} resultPending={failureView.canReload} />
+                        ) : null}
+                        <CanvasNodeContent
+                            node={data}
+                            theme={theme}
+                            isEditingContent={isEditingContent}
+                            textareaRef={textareaRef}
+                            isBatchRoot={isBatchRoot}
+                            batchCount={batchCount}
+                            batchPreviewNodes={batchPreviewNodes}
+                            batchExpanded={batchExpanded}
+                            batchOpening={batchOpening}
+                            batchRecovering={batchRecovering}
+                            renderNodeContent={renderNodeContent}
+                            drawingProjectId={drawingProjectId}
+                            projectId={drawingProjectId}
+                            mentionReferences={mentionReferences}
+                            onContentChange={onContentChange}
+                            onStopEditing={() => setIsEditingContent(false)}
+                            onRetry={onRetry}
+                            onReloadResource={onReloadResource}
+                            onOpenTaskDetails={onOpenTaskDetails}
+                            onCancelTask={onCancelTask}
+                            onToggleBatch={() => onToggleBatch?.(data.id)}
+                            reduceMediaEffects={reduceMediaEffects}
+                            mediaActive={mediaActive}
+                            scale={scale}
+                            onMediaPlayRequest={onMediaPlayRequest}
+                        />
+                        {imageCropActive && hasImageContent ? (
+                            <CanvasImageCropEditor
+                                imageUrl={data.metadata?.content || ""}
+                                imageDimensions={{ width: Math.max(1, data.metadata?.naturalWidth || data.width), height: Math.max(1, data.metadata?.naturalHeight || data.height) }}
+                                onCancel={() => onCancelImageCrop?.()}
+                                onConfirm={(crop) => onConfirmImageCrop?.(data, crop)}
+                            />
+                        ) : null}
+                        {annotationActive && hasImageContent ? (
+                            <CanvasImageAnnotationEditor
+                                image={{ url: data.metadata?.content || "", storageKey: data.metadata?.storageKey }}
+                                scale={scale}
+                                onCancel={() => onCancelAnnotation?.()}
+                                onConfirm={(dataUrl) => onConfirmAnnotation?.(data, dataUrl)}
+                            />
+                        ) : null}
+                        {maskEditActive && maskEditConfig && hasImageContent ? (
+                            <CanvasImageMaskEditor
+                                imageDimensions={{ width: Math.max(1, data.metadata?.naturalWidth || data.width), height: Math.max(1, data.metadata?.naturalHeight || data.height) }}
+                                scale={scale}
+                                config={maskEditConfig}
+                                onCancel={() => onCancelMaskEdit?.()}
+                                onConfirm={(payload) => onConfirmMaskEdit?.(data, payload)}
+                            />
+                        ) : null}
+                        {videoCropActive && hasVideoContent ? (
+                            <CanvasVideoCropEditor
+                                videoUrl={data.metadata?.content || ""}
+                                videoDimensions={{
+                                    width: Math.max(1, data.metadata?.naturalWidth || data.width),
+                                    height: Math.max(1, data.metadata?.naturalHeight || data.height),
+                                }}
+                                onCancel={() => onCancelVideoCrop?.()}
+                                onConfirm={(crop, sourceDimensions) => onConfirmVideoCrop?.(data, crop, sourceDimensions)}
+                            />
+                        ) : null}
+                    </div>
+
+                    {data.type === CanvasNodeType.Text && data.metadata?.workflowKind !== "character" && !readOnly ? (
+                        <div
+                            className={`canvas-node-inline-edit absolute bottom-[10%] left-1/2 z-[var(--node-z-overlay)] -translate-x-1/2 motion-safe:transition motion-safe:duration-200 ${isSelected ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0"}`}
+                            aria-hidden={!isSelected}
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onPointerDown={(event) => event.stopPropagation()}
+                        >
+                            <button
+                                type="button"
+                                className="canvas-node-inline-action inline-flex h-9 items-center gap-2 px-3 text-xs font-medium backdrop-blur-xl transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                                style={{ outlineColor: theme.accent.primary }}
+                                tabIndex={isSelected ? 0 : -1}
+                                onClick={(event) => { event.stopPropagation(); onOpenTextEditor?.(data); }}
+                                aria-label="放大编辑文本"
+                            >
+                                <Maximize2 className="size-3.5" />
+                                放大编辑
+                            </button>
+                        </div>
+                    ) : null}
+
+                    {data.metadata?.versionLabel ? (
                         <button
                             type="button"
-                            className="canvas-node-inline-action inline-flex h-9 items-center gap-2 px-3 text-xs font-medium backdrop-blur-xl transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-                            style={{ outlineColor: theme.accent.primary }}
-                            tabIndex={isSelected ? 0 : -1}
-                            onClick={(event) => { event.stopPropagation(); onOpenTextEditor?.(data); }}
-                            aria-label="放大编辑文本"
+                            // 版本徽标必须能在节点参数面板打开时继续点击；它是版本对比的稳定入口，
+                            // 不能被 resize handle 或面板的 textarea 覆盖。
+                            className="absolute left-3 top-3 z-[var(--node-z-overlay)] grid size-7 place-items-center rounded-[var(--r-full)] border p-0.5 text-[var(--node-badge-fs)] font-semibold leading-none backdrop-blur-md transition-[transform,background,border-color,box-shadow] hover:-translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 motion-reduce:hover:translate-y-0"
+                            style={{
+                                background: data.metadata.versionPrimary ? theme.accent.primarySoft : theme.toolbar.panel,
+                                borderColor: data.metadata.versionPrimary ? theme.accent.primary : theme.toolbar.border,
+                                color: data.metadata.versionPrimary ? theme.accent.primary : theme.node.text,
+                                outlineColor: theme.accent.primary,
+                            }}
+                            title={data.metadata.versionLabel + (data.metadata.versionPrimary ? " · 主版本" : "") + "，点击查看版本对比"}
+                            aria-label={data.metadata.versionLabel + (data.metadata.versionPrimary ? "，主版本" : "") + "，查看版本对比"}
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onClick={(event) => { event.stopPropagation(); onOpenVersions?.(data); }}
                         >
-                            <Maximize2 className="size-3.5" />
-                            放大编辑
+                            {data.metadata.versionLabel}
                         </button>
-                    </div>
-                ) : null}
-
-                {data.metadata?.versionLabel ? (
-                    <button
-                        type="button"
-                        // 版本徽标必须能在节点参数面板打开时继续点击；它是版本对比的稳定入口，
-                        // 不能被 resize handle 或面板的 textarea 覆盖。
-                        className="absolute left-3 top-3 z-[var(--node-z-overlay)] grid size-7 place-items-center rounded-[var(--r-full)] border p-0.5 text-[var(--node-badge-fs)] font-semibold leading-none backdrop-blur-md transition-[transform,background,border-color,box-shadow] hover:-translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 motion-reduce:hover:translate-y-0"
-                        style={{
-                            background: data.metadata.versionPrimary ? theme.accent.primarySoft : theme.toolbar.panel,
-                            borderColor: data.metadata.versionPrimary ? theme.accent.primary : theme.toolbar.border,
-                            color: data.metadata.versionPrimary ? theme.accent.primary : theme.node.text,
-                            outlineColor: theme.accent.primary,
-                        }}
-                        title={data.metadata.versionLabel + (data.metadata.versionPrimary ? " · 主版本" : "") + "，点击查看版本对比"}
-                        aria-label={data.metadata.versionLabel + (data.metadata.versionPrimary ? "，主版本" : "") + "，查看版本对比"}
-                        onMouseDown={(event) => event.stopPropagation()}
-                        onClick={(event) => { event.stopPropagation(); onOpenVersions?.(data); }}
-                    >
-                        {data.metadata.versionLabel}
-                    </button>
-                ) : null}
-                {showStatusTrack ? (
-                    <div className={`absolute right-3 top-3 z-[var(--node-z-overlay)] flex min-w-0 items-center justify-end gap-1 ${data.metadata?.versionLabel ? "max-w-[calc(100%-104px)]" : "max-w-[calc(100%-24px)]"}`}>
-                        {isBatchRoot ? <BatchToggleBadge count={batchCount} expanded={batchExpanded} theme={theme} onToggle={() => onToggleBatch?.(data.id)} /> : null}
-                        {isBatchChild && !readOnly ? <BatchPrimaryBadge visible={batchPrimary || hovered || isSelected} selected={batchPrimary} theme={theme} onSelect={() => onSetBatchPrimary?.(data)} /> : null}
-                        {data.metadata?.locked ? <NodeLockBadge theme={theme} /> : null}
-                    </div>
-                ) : null}
-                {/* 批次子图操作条：成功子项提供下载/副本/设为主图，失败子项提供重试/删除 */}
-                {isBatchChild && !readOnly && (hasImageContent || data.metadata?.status === "error") && (hovered || isSelected) ? (
-                    <div
-                        className="absolute inset-x-0 bottom-2 z-[var(--node-z-overlay)] flex justify-center"
-                        onMouseDown={(event) => event.stopPropagation()}
-                        onPointerDown={(event) => event.stopPropagation()}
-                    >
-                        <div className="flex items-center gap-0.5 rounded-[var(--r-md)] border px-1 py-1 backdrop-blur-xl" style={{ background: `${theme.toolbar.panel}e6`, borderColor: theme.toolbar.border }}>
-                            {hasImageContent ? <BatchChildActionButton theme={theme} label="下载图片" icon={<Download className="size-3.5" />} onClick={() => downloadNode?.(data)} /> : null}
-                            {hasImageContent ? <BatchChildActionButton theme={theme} label="创建副本" icon={<Copy className="size-3.5" />} onClick={() => duplicateNode?.(data)} /> : null}
-                            {hasImageContent ? (
-                                <BatchChildActionButton theme={theme} label={batchPrimary ? "当前主图" : "设为主图"} icon={<Star className={`size-3.5 ${batchPrimary ? "fill-current" : ""}`} style={{ color: theme.accent.primary }} />} onClick={() => onSetBatchPrimary?.(data)} />
-                            ) : null}
-                            {isBatchChild && failureView.canReload ? <BatchChildActionButton theme={theme} label="继续取回" icon={<Download className="size-3.5" />} onClick={() => onReloadResource?.(data)} /> : null}
-                            {isBatchChild && failureView.batchRegenerateVisible ? <BatchChildActionButton theme={theme} label="重新生成" icon={<RefreshCw className="size-3.5" />} onClick={() => onRetry?.(data)} /> : null}
-                            {data.metadata?.status === "error" && data.metadata.taskId && onOpenTaskDetails ? <BatchChildActionButton theme={theme} label="查看原任务" icon={<ScanSearch className="size-3.5" />} onClick={() => onOpenTaskDetails(data)} /> : null}
-                            {data.metadata?.status === "error" ? <BatchChildActionButton theme={theme} label="删除" icon={<Trash2 className="size-3.5" />} danger onClick={() => deleteNode?.(data)} /> : null}
+                    ) : null}
+                    {showStatusTrack ? (
+                        <div className={`absolute right-3 top-3 z-[var(--node-z-overlay)] flex min-w-0 items-center justify-end gap-1 ${data.metadata?.versionLabel ? "max-w-[calc(100%-104px)]" : "max-w-[calc(100%-24px)]"}`}>
+                            {isBatchRoot ? <BatchToggleBadge count={batchCount} expanded={batchExpanded} theme={theme} onToggle={() => onToggleBatch?.(data.id)} /> : null}
+                            {isBatchChild && !readOnly ? <BatchPrimaryBadge visible={batchPrimary || hovered || isSelected} selected={batchPrimary} theme={theme} onSelect={() => onSetBatchPrimary?.(data)} /> : null}
+                            {data.metadata?.locked ? <NodeLockBadge theme={theme} /> : null}
                         </div>
-                    </div>
-                ) : null}
-                {/* 批次主图位（折叠根节点封面）常驻下载按钮 */}
-                {isBatchRoot && hasImageContent && !readOnly ? (
-                    <div className="absolute bottom-2 right-2 z-[var(--node-z-overlay)]" onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
-                        <BatchChildActionButton theme={theme} label="下载主图" icon={<Download className="size-3.5" />} onClick={() => downloadNode?.(data)} />
-                    </div>
-                ) : null}
-                {!readOnly && !data.metadata?.locked && (isSelected || hovered) ? <>
-                    <ResizeHandle corner="top-left" onMouseDown={handleResizeMouseDown} />
-                    <ResizeHandle corner="top-right" onMouseDown={handleResizeMouseDown} />
-                    <ResizeHandle corner="bottom-left" onMouseDown={handleResizeMouseDown} />
-                    <ResizeHandle corner="bottom-right" onMouseDown={handleResizeMouseDown} />
-                </> : null}
+                    ) : null}
+                    {/* 批次子图操作条：成功子项提供下载/副本/设为主图，失败子项提供重试/删除 */}
+                    {isBatchChild && !readOnly && (hasImageContent || data.metadata?.status === "error") && (hovered || isSelected) ? (
+                        <div
+                            className="absolute inset-x-0 bottom-2 z-[var(--node-z-overlay)] flex justify-center"
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onPointerDown={(event) => event.stopPropagation()}
+                        >
+                            <div className="flex items-center gap-0.5 rounded-[var(--r-md)] border px-1 py-1 backdrop-blur-xl" style={{ background: `${theme.toolbar.panel}e6`, borderColor: theme.toolbar.border }}>
+                                {hasImageContent ? <BatchChildActionButton theme={theme} label="下载图片" icon={<Download className="size-3.5" />} onClick={() => downloadNode?.(data)} /> : null}
+                                {hasImageContent ? <BatchChildActionButton theme={theme} label="创建副本" icon={<Copy className="size-3.5" />} onClick={() => duplicateNode?.(data)} /> : null}
+                                {hasImageContent ? (
+                                    <BatchChildActionButton theme={theme} label={batchPrimary ? "当前主图" : "设为主图"} icon={<Star className={`size-3.5 ${batchPrimary ? "fill-current" : ""}`} style={{ color: theme.accent.primary }} />} onClick={() => onSetBatchPrimary?.(data)} />
+                                ) : null}
+                                {isBatchChild && failureView.canReload ? <BatchChildActionButton theme={theme} label="继续取回" icon={<Download className="size-3.5" />} onClick={() => onReloadResource?.(data)} /> : null}
+                                {isBatchChild && failureView.batchRegenerateVisible ? <BatchChildActionButton theme={theme} label="重新生成" icon={<RefreshCw className="size-3.5" />} onClick={() => onRetry?.(data)} /> : null}
+                                {data.metadata?.status === "error" && data.metadata.taskId && onOpenTaskDetails ? <BatchChildActionButton theme={theme} label="查看原任务" icon={<ScanSearch className="size-3.5" />} onClick={() => onOpenTaskDetails(data)} /> : null}
+                                {data.metadata?.status === "error" ? <BatchChildActionButton theme={theme} label="删除" icon={<Trash2 className="size-3.5" />} danger onClick={() => deleteNode?.(data)} /> : null}
+                            </div>
+                        </div>
+                    ) : null}
+                    {/* 批次主图位（折叠根节点封面）常驻下载按钮 */}
+                    {isBatchRoot && hasImageContent && !readOnly ? (
+                        <div className="absolute bottom-2 right-2 z-[var(--node-z-overlay)]" onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
+                            <BatchChildActionButton theme={theme} label="下载主图" icon={<Download className="size-3.5" />} onClick={() => downloadNode?.(data)} />
+                        </div>
+                    ) : null}
+                    {!readOnly && !data.metadata?.locked && (isSelected || hovered) ? <>
+                        <ResizeHandle corner="top-left" onMouseDown={handleResizeMouseDown} />
+                        <ResizeHandle corner="top-right" onMouseDown={handleResizeMouseDown} />
+                        <ResizeHandle corner="bottom-left" onMouseDown={handleResizeMouseDown} />
+                        <ResizeHandle corner="bottom-right" onMouseDown={handleResizeMouseDown} />
+                    </> : null}
+                </div>
             </div>
 
-            {!readOnly && data.type !== CanvasNodeType.Script && data.type !== CanvasNodeType.BatchTable && data.type !== CanvasNodeType.WorkflowControl ? <ConnectionSideRail side="left" scale={scale} theme={theme} visible={hovered || isSelected || forceInputVisible} onPointerDown={(event, anchorRatio) => onConnectStart(event, data.id, "target", undefined, anchorRatio)} /> : null}
-            {!readOnly && data.type !== CanvasNodeType.Script && data.type !== CanvasNodeType.Config && showOutputConnection ? <ConnectionSideRail side="right" scale={scale} theme={theme} visible={hovered || isSelected} onPointerDown={(event, anchorRatio) => onConnectStart(event, data.id, "source", undefined, anchorRatio)} /> : null}
+            {!readOnly && data.type !== CanvasNodeType.Script && data.type !== CanvasNodeType.BatchTable && data.type !== CanvasNodeType.WorkflowControl ? <ConnectionSideRail side="left" scale={scale} theme={theme} visible={hovered || isSelected || forceInputVisible} hideGlyph={isConnectionTarget} onPointerDown={(event, anchorRatio) => onConnectStart(event, data.id, "target", undefined, anchorRatio)} /> : null}
+            {!readOnly && data.type !== CanvasNodeType.Script && data.type !== CanvasNodeType.Config && showOutputConnection ? <ConnectionSideRail side="right" scale={scale} theme={theme} visible={hovered || isSelected} hideGlyph={isConnectionTarget} onPointerDown={(event, anchorRatio) => onConnectStart(event, data.id, "source", undefined, anchorRatio)} /> : null}
 
         </div>
     );
@@ -845,23 +850,35 @@ function NodeStatusBadge({ status, resultPending }: { status: "loading" | "succe
     );
 }
 
-function ConnectionSideRail({ side, scale, theme, visible = false, onPointerDown }: { side: "left" | "right"; scale: number; theme: CanvasTheme; visible?: boolean; onPointerDown: (event: React.PointerEvent, anchorRatio: number) => void }) {
+function ConnectionSideRail({ side, scale, theme, visible = false, hideGlyph = false, onPointerDown }: { side: "left" | "right"; scale: number; theme: CanvasTheme; visible?: boolean; hideGlyph?: boolean; onPointerDown: (event: React.PointerEvent, anchorRatio: number) => void }) {
     const handleRef = useRef<HTMLSpanElement>(null);
     const [railHovered, setRailHovered] = useState(false);
+    // 目标卡片抬起时让框体承担接收反馈，避免稳定圆钮与扩张后的卡片挤在一起。
+    const showGlyph = !hideGlyph && (visible || railHovered);
     const inverseScale = 1 / Math.max(scale, 0.05);
-    const railSize = 80;
-    // Keep the control responsive to zoom, but avoid sub-pixel circles and
-    // strokes at far zoom levels where the plus sign appears visually off-center.
-    const handleSize = Math.max(20, 8 * inverseScale);
-    // LibTV centers the visual quick-add icon in an approximately 80px
-    // circular hit zone, then offsets it toward the node edge. Keep that
-    // visual layer separate from the real centered connection anchor.
-    const sideOffset = side === "left" ? 25 : -25;
+    // 使用画布逐帧更新的倍率，避免滚轮结束、React 提交倍率时才补偿尺寸而突然变大。
+    const liveInverseScale = `var(--canvas-live-inverse-scale, ${inverseScale})`;
+    const handleScreenSize = 20;
+    // 点击区也固定为屏幕 44px，避免大倍率时鼠标跟随范围被画布成倍放大。
+    const railSize = `calc(44px * ${liveInverseScale})`;
+    const handleSize = "var(--canvas-connection-handle-size)";
+    // 圆钮外缘与节点保留 6px 屏幕间距，视觉位置与真实的节点中点连线锚点分开。
+    const restOffset = `calc(${side === "left" ? 1 : -1} * ((${railSize} - ${handleSize}) / 2 - 6px * ${liveInverseScale}))`;
+    // 间距限制放在 CSS 中逐帧计算，缩放期间即使鼠标不动，悬停圆钮也不会压住边框。
+    const edgeOffset = `calc((var(--canvas-connection-rail-size) - ${handleSize}) / 2 - var(--canvas-connection-gap))`;
+    const followOffset = "var(--canvas-connection-offset-x, var(--canvas-connection-rest-offset))";
+    // 圆钮完整留在点击区内，避免鼠标跟随时把可见部分移出实际命中范围。
+    const outerOffset = `calc((var(--canvas-connection-rail-size) - ${handleSize}) / 2)`;
+    const boundedOffset = side === "left"
+        ? `clamp(calc(-1 * ${outerOffset}), ${followOffset}, ${edgeOffset})`
+        : `clamp(calc(-1 * ${edgeOffset}), ${followOffset}, ${outerOffset})`;
+    const boundedVerticalOffset = `clamp(calc(-1 * ${outerOffset}), var(--canvas-connection-offset-y, 0px), ${outerOffset})`;
 
     const resetHandle = useCallback(() => {
         if (!handleRef.current) return;
-        handleRef.current.style.transform = `translate(${sideOffset}px, 0) scale(1)`;
-    }, [sideOffset]);
+        handleRef.current.style.removeProperty("--canvas-connection-offset-x");
+        handleRef.current.style.removeProperty("--canvas-connection-offset-y");
+    }, []);
 
     const updateHandle = (event: React.PointerEvent<HTMLButtonElement>) => {
         const bounds = event.currentTarget.getBoundingClientRect();
@@ -872,21 +889,31 @@ function ConnectionSideRail({ side, scale, theme, visible = false, onPointerDown
         const deltaY = event.clientY - (bounds.top + height / 2);
         const offsetScreenX = Math.max(-followLimit, Math.min(followLimit, deltaX));
         const offsetScreenY = Math.max(-followLimit, Math.min(followLimit, deltaY));
-        const focus = 1 + Math.max(0, 1 - Math.hypot(offsetScreenX, offsetScreenY) / followLimit) * 0.1;
-        // While the pointer is inside the rail LibTV uses the rail center as
-        // the origin. The side-specific +/-25px offset is only the resting
-        // position used after leaving the rail.
-        const offsetX = offsetScreenX * inverseScale;
-        const offsetY = offsetScreenY * inverseScale;
-        if (handleRef.current) handleRef.current.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${focus})`;
+        // 跟随偏移也使用实时倍率；用独立变量保留悬停位置，防止 React 提交时重置 transform。
+        if (handleRef.current) {
+            handleRef.current.style.setProperty("--canvas-connection-offset-x", `calc(${offsetScreenX}px * var(--canvas-connection-inverse-scale))`);
+            handleRef.current.style.setProperty("--canvas-connection-offset-y", `calc(${offsetScreenY}px * var(--canvas-connection-inverse-scale))`);
+        }
     };
 
     return (
         <button
             type="button"
             data-canvas-connection-rail={side}
-            className={`group pointer-events-auto absolute top-1/2 z-[var(--node-z-overlay)] flex -translate-y-1/2 items-center justify-center touch-none cursor-crosshair rounded-full outline-none transition-opacity duration-150 ${visible || railHovered ? "opacity-100" : "opacity-0"}`}
-            style={{ width: railSize, height: `min(100%, ${railSize}px)`, cursor: "crosshair", ...(side === "left" ? { right: "100%" } : { left: "100%" }) }}
+            data-canvas-live-scale
+            className={`pointer-events-auto absolute top-1/2 z-[var(--node-z-overlay)] flex -translate-y-1/2 items-center justify-center touch-none cursor-crosshair rounded-full outline-none transition-opacity duration-150 ${visible || railHovered ? "opacity-100" : "opacity-0"}`}
+            style={{
+                "--canvas-connection-inverse-scale": liveInverseScale,
+                "--canvas-connection-rail-size": railSize,
+                "--canvas-connection-handle-size": `calc(${handleScreenSize}px * ${liveInverseScale})`,
+                "--canvas-connection-gap": `calc(6px * ${liveInverseScale})`,
+                "--canvas-connection-rest-offset": restOffset,
+                width: railSize,
+                height: railSize,
+                cursor: "crosshair",
+                right: side === "left" ? "100%" : undefined,
+                left: side === "right" ? "100%" : undefined,
+            } as React.CSSProperties}
             onPointerEnter={(event) => {
                 setRailHovered(true);
                 updateHandle(event);
@@ -903,39 +930,28 @@ function ConnectionSideRail({ side, scale, theme, visible = false, onPointerDown
         >
             <span
                 ref={handleRef}
-                className="absolute left-1/2 top-1/2 block transition-transform duration-[80ms] ease-out group-hover:brightness-125 group-focus-visible:brightness-125"
+                aria-hidden="true"
+                className="pointer-events-none invisible absolute left-1/2 top-1/2 block"
                 style={{
-                    display: visible || railHovered ? undefined : "none",
-                    width: handleSize,
-                    height: handleSize,
-                    marginLeft: -handleSize / 2,
-                    marginTop: -handleSize / 2,
-                    transform: `translate(${sideOffset}px, 0) scale(1)`,
-                    transition: "transform 80ms ease-out",
+                    display: showGlyph ? undefined : "none",
+                    // 节点内只保留定位锚点，圆钮本体在未缩放的界面层绘制。
+                    width: handleScreenSize,
+                    height: handleScreenSize,
+                    marginLeft: -handleScreenSize / 2,
+                    marginTop: -handleScreenSize / 2,
+                    translate: `${boundedOffset} ${boundedVerticalOffset}`,
+                    scale: "var(--canvas-connection-inverse-scale)",
                     transformOrigin: "center",
-                    willChange: railHovered ? "transform" : undefined,
                 }}
-            >
-                <svg
-                    aria-hidden="true"
-                    className="block"
-                    width={handleSize}
-                    height={handleSize}
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    style={{
-                        position: "absolute",
-                        left: "50%",
-                        top: "50%",
-                        marginLeft: -handleSize / 2,
-                        marginTop: -handleSize / 2,
-                    }}
-                >
-                    <circle cx="10" cy="10" r="9.35" fill={theme.spatial.elevated} />
-                    <circle cx="10" cy="10" r="9.35" stroke={theme.node.activeStroke} strokeWidth="1.2" />
-                    <path d="M10 6.5v7M6.5 10h7" stroke={theme.node.activeStroke} strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-            </span>
+            />
+            {showGlyph ? (
+                <CanvasConnectionGlyph
+                    anchorRef={handleRef}
+                    side={side}
+                    color={railHovered ? theme.node.activeStroke : `color-mix(in srgb, ${theme.node.activeStroke} 45%, transparent)`}
+                    background={theme.spatial.elevated}
+                />
+            ) : null}
         </button>
     );
 }
