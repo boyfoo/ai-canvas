@@ -7,6 +7,11 @@ type VideoPreviewSource = Pick<CanvasNodeData, "metadata">;
 
 export const CANVAS_VIDEO_PREVIEW_VERSION = 2;
 
+/** 无本地文件的外链交给 video 直接显示，不能要求提供商同时允许 canvas 跨域抽帧。LibTV 保留原有预览流程。 */
+export function canvasVideoUsesDirectUrl(node: VideoPreviewSource) {
+    return !node.metadata?.storageKey && node.metadata?.importSource?.provider !== "libtv" && /^https?:\/\//i.test(node.metadata?.content || "");
+}
+
 export function canvasDerivedPreviewSourceKey(node: VideoPreviewSource) {
     return JSON.stringify([node.metadata?.storageKey || "", node.metadata?.content || "", node.metadata?.importSource?.provider || ""]);
 }
@@ -23,6 +28,7 @@ function disposeEntry(key: string, entry: PreviewEntry) {
 
 /** Display-only leases: never upload a poster or mutate the durable canvas. */
 export function acquireCanvasVideoPreview(node: VideoPreviewSource) {
+    if (canvasVideoUsesDirectUrl(node)) return { promise: Promise.resolve(null), release() {} };
     const sourceKey = node.metadata?.storageKey || node.metadata?.content || "";
     const requestKey = canvasDerivedPreviewSourceKey(node);
     let entry = previewRequests.get(requestKey);
@@ -53,6 +59,7 @@ export function acquireCanvasVideoPreview(node: VideoPreviewSource) {
 }
 
 export function canvasVideoPreviewNeedsHydration(node: VideoPreviewSource) {
+    if (canvasVideoUsesDirectUrl(node)) return false;
     const sourceKey = canvasVideoPreviewSourceKey(node);
     if (!sourceKey) return false;
     const preview = node.metadata?.videoPreview;

@@ -189,7 +189,13 @@ export async function buildGenerationTaskNodeResult(node: CanvasNodeData, task: 
                   bytes: result.video?.bytes || 0,
                   mimeType: result.video?.mimeType || "video/mp4",
               }
-            : await mediaIO.storeGeneratedVideo({ url: videoSource, mimeType: result.video?.mimeType || "video/mp4" });
+            : {
+                  ...await mediaIO.storeGeneratedVideo({ url: videoSource, mimeType: result.video?.mimeType || "video/mp4" }),
+                  width: result.video?.width,
+                  height: result.video?.height,
+                  durationMs: result.video?.durationMs,
+                  bytes: result.video?.bytes || 0,
+              };
         const videoSize = fitNodeSize(video.width || node.width || VIDEO_NODE_MAX_SIZE.width, video.height || node.height || VIDEO_NODE_MAX_SIZE.height, VIDEO_NODE_MAX_SIZE.width, VIDEO_NODE_MAX_SIZE.height);
         const geometry = node.metadata?.locked
             ? {}

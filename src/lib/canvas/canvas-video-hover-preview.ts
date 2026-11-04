@@ -1,9 +1,9 @@
-// Only the hovered node owns a decoder; pending hover work shares the same lease.
+// 优先复用节点已有的首帧 video，仅在缺少时创建临时播放器。
 let stopCurrentPreview: (() => void) | undefined;
 export const VIDEO_HOVER_DELAY_MS = 350;
 export const VIDEO_HOVER_PREVIEW_MS = 3000;
 
-export function bindCanvasVideoHoverPreview(element: HTMLElement, resolveSource: (signal: AbortSignal) => Promise<{ url: string; release: () => void }>) {
+export function bindCanvasVideoHoverPreview(element: HTMLElement, resolveSource: (signal: AbortSignal) => Promise<{ url: string; release: () => void }>, getPreviewVideo?: () => HTMLVideoElement | null) {
     let stop: (() => void) | undefined;
     const enter = (event: PointerEvent) => {
         if (event.pointerType !== "mouse" || event.buttons || document.hidden
@@ -12,6 +12,7 @@ export function bindCanvasVideoHoverPreview(element: HTMLElement, resolveSource:
         stopCurrentPreview?.();
         let disposed = false;
         let video: HTMLVideoElement | undefined;
+        let ownsVideo = false;
         let releaseSource: (() => void) | undefined;
         let playbackTimer: ReturnType<typeof setTimeout> | undefined;
         const listeners = new AbortController();
@@ -32,11 +33,15 @@ export function bindCanvasVideoHoverPreview(element: HTMLElement, resolveSource:
             observer.disconnect();
             visibility.disconnect();
             if (video) {
-                video.style.opacity = "0";
-                video.remove();
                 video.pause();
-                video.removeAttribute("src");
-                video.load();
+                if (ownsVideo) {
+                    video.style.opacity = "0";
+                    video.remove();
+                    video.removeAttribute("src");
+                    video.load();
+                } else if (video.readyState >= 1) {
+                    video.currentTime = Number.isFinite(video.duration) && video.duration > 0 ? Math.min(0.001, video.duration / 2) : 0.001;
+                }
             }
             releaseSource?.();
             releaseSource = undefined;
@@ -49,18 +54,25 @@ export function bindCanvasVideoHoverPreview(element: HTMLElement, resolveSource:
                 cancel();
                 return;
             }
-            void resolveSource(listeners.signal).then((source) => {
+            const previewVideo = getPreviewVideo?.();
+            const sourcePromise = previewVideo
+                ? Promise.resolve({ url: previewVideo.currentSrc || previewVideo.src, release: () => undefined })
+                : resolveSource(listeners.signal);
+            void sourcePromise.then((source) => {
                 if (disposed) { source.release(); return; }
                 releaseSource = source.release;
                 if (!source.url || !element.isConnected || document.hidden) { cancel(); return; }
-                video = document.createElement("video");
-                video.muted = true;
-                video.playsInline = true;
-                video.preload = "metadata";
-                video.style.opacity = "0";
-                video.className = "pointer-events-none absolute inset-0 size-full rounded-[var(--node-radius)] bg-black object-contain";
-                video.setAttribute("aria-hidden", "true");
-                video.dataset.canvasHoverPreview = "true";
+                ownsVideo = !previewVideo;
+                video = previewVideo || document.createElement("video");
+                if (ownsVideo) {
+                    video.muted = true;
+                    video.playsInline = true;
+                    video.preload = "metadata";
+                    video.style.opacity = "0";
+                    video.className = "pointer-events-none absolute inset-0 size-full rounded-[var(--node-radius)] bg-black object-contain";
+                    video.setAttribute("aria-hidden", "true");
+                    video.dataset.canvasHoverPreview = "true";
+                }
                 video.addEventListener("ended", cancel, { signal: listeners.signal });
                 video.addEventListener("error", cancel, { signal: listeners.signal });
                 video.addEventListener("timeupdate", () => {
@@ -69,19 +81,21 @@ export function bindCanvasVideoHoverPreview(element: HTMLElement, resolveSource:
                 video.addEventListener("playing", () => {
                     if (!playbackTimer) playbackTimer = setTimeout(cancel, VIDEO_HOVER_PREVIEW_MS);
                 }, { signal: listeners.signal });
-                if (typeof video.requestVideoFrameCallback === "function") {
+                if (ownsVideo && typeof video.requestVideoFrameCallback === "function") {
                     video.requestVideoFrameCallback(() => {
                         if (!disposed && video) video.style.opacity = "1";
                     });
-                } else {
+                } else if (ownsVideo) {
                     video.addEventListener("playing", () => {
                         requestAnimationFrame(() => requestAnimationFrame(() => {
                             if (!disposed && video) video.style.opacity = "1";
                         }));
                     }, { once: true, signal: listeners.signal });
                 }
-                video.src = source.url;
-                element.appendChild(video);
+                if (ownsVideo) {
+                    video.src = source.url;
+                    element.appendChild(video);
+                }
                 void video.play().catch(cancel);
             }).catch(cancel);
         }, VIDEO_HOVER_DELAY_MS);

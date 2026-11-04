@@ -11,6 +11,7 @@ import { buildAssetMentionReferences, canvasResourceDisplayName, canvasResourceM
 import type { AssetCategory } from "@/stores/use-asset-store";
 import { CanvasNodeType } from "@/types/canvas";
 import { useResolvedCanvasResourceReferences } from "./use-resolved-canvas-resource-references";
+import { CanvasReferencePreview, canPreviewCanvasReference } from "./canvas-reference-preview";
 import { replaceCanvasReferenceToken, type CanvasReferenceAction, type CanvasReferenceIssue } from "@/lib/canvas/canvas-reference-issues";
 
 type MentionState = {
@@ -587,7 +588,7 @@ if (event.key === "Enter" && (event.nativeEvent.isComposing || composingRef.curr
                     onDoubleClick={(event) => {
                         const chip = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-mention-reference-id]") : null;
                         const reference = chip ? availableReferences.find((item) => item.id === chip.dataset.mentionReferenceId) : undefined;
-                        if (!reference || !referencePreviewUrl(reference)) return;
+                        if (!reference || !canPreviewCanvasReference(reference)) return;
                         event.preventDefault();
                         event.stopPropagation();
                         setPreviewReference(reference);
@@ -620,7 +621,7 @@ if (event.key === "Enter" && (event.nativeEvent.isComposing || composingRef.curr
                 </div>
                 {autoLinkSuggestion}
                 {menu}
-                {previewReference ? <InlineReferencePreview reference={previewReference} onClose={() => setPreviewReference(null)} /> : null}
+                {previewReference ? <CanvasReferencePreview reference={previewReference} onClose={() => setPreviewReference(null)} /> : null}
             </div>
         );
     }
@@ -761,24 +762,6 @@ function skillMentionColor(reference: CanvasResourceReference) {
     let hash = 0;
     for (const character of key) hash = (hash * 31 + character.charCodeAt(0)) | 0;
     return SKILL_MENTION_COLORS[Math.abs(hash) % SKILL_MENTION_COLORS.length];
-}
-
-function referencePreviewUrl(reference: CanvasResourceReference) {
-    return reference.previewUrl || (reference.kind === "video" ? reference.mediaUrl : "") || "";
-}
-
-function InlineReferencePreview({ reference, onClose }: { reference: CanvasResourceReference; onClose: () => void }) {
-    const url = referencePreviewUrl(reference);
-    if (!url) return null;
-    return createPortal(
-        <div className="fixed inset-0 z-[var(--z-dialog-popover)] grid place-items-center bg-black/80 p-6" role="dialog" aria-label={`预览${reference.label}`} onClick={onClose}>
-            <div className="relative max-h-[92vh] max-w-[92vw]" onClick={(event) => event.stopPropagation()}>
-                <img src={url} alt={reference.label} className="max-h-[88vh] max-w-[88vw] rounded-xl object-contain shadow-2xl" />
-                <button type="button" className="absolute -right-3 -top-3 rounded-full bg-black/75 p-2 text-white shadow-lg" onClick={onClose} aria-label="关闭图片预览">×</button>
-            </div>
-        </div>,
-        document.body,
-    );
 }
 
 function createInlinePreview(reference: CanvasResourceReference) {

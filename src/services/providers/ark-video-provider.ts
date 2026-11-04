@@ -15,6 +15,7 @@ import type { BackendGenerationTaskOptions } from "@/services/api/generation-tas
 import type { ReferenceImage } from "@/types/image";
 import type { GenerationOperationDefinition } from "@/lib/generation-parameter-types";
 import { resolveVideoFrameIds } from "@/lib/video-frame-selection";
+import { uploadArkFile } from "./ark-file-reference";
 
 export type VideoProviderObservation = {
     id: string;
@@ -26,14 +27,6 @@ export type VideoProviderObservation = {
     mime_type: string;
     duration_ms?: number;
 };
-
-export function providerDelay(ms: number, signal?: AbortSignal) {
-    return new Promise<void>((resolve, reject) => {
-        const abort = () => { clearTimeout(timer); signal?.removeEventListener("abort", abort); reject(new DOMException("已停止等待", "AbortError")); };
-        const timer = setTimeout(() => { signal?.removeEventListener("abort", abort); resolve(); }, ms);
-        if (signal?.aborted) abort(); else signal?.addEventListener("abort", abort, { once: true });
-    });
-}
 
 function sourceUrl(value: string) {
     if (/^asset:\/\/[A-Za-z0-9_-]+$/.test(value)) return value;
@@ -56,31 +49,6 @@ async function dataUrl(blob: Blob, signal?: AbortSignal): Promise<string> {
         signal?.addEventListener("abort", abort, { once: true });
         reader.readAsDataURL(blob);
     });
-}
-
-type FileInfo = { id?: string; status?: string; download_url?: string; error?: { message?: string } };
-
-async function uploadArkFile(channel: ModelChannel, blob: Blob, name: string, kind: "image" | "video" | "audio", signal?: AbortSignal, progress?: (label: string, loaded: number, total: number) => void) {
-    if (blob.size > (kind === "video" ? 200 : kind === "image" ? 30 : 15) * 1024 * 1024) throw new Error("参考素材超过当前视频模型的文件大小限制");
-    if (kind === "video" && (!/\.(mp4|mov)$/i.test(name) || (blob.type && !["video/mp4", "video/quicktime"].includes(blob.type)))) throw new Error("方舟参考视频仅支持 MP4 / MOV");
-    const transport = createChannelTransport(channel, "video");
-    const form = new FormData();
-    form.append("purpose", "user_data"); form.append("file", blob, name);
-    const created = await transport.postForm<FileInfo>(buildApiUrl(channel.baseUrl, "/files"), form, { signal, timeout_ms: 180_000, on_upload_progress: (loaded, total) => progress?.(`上传参考素材：${name}`, loaded, total) });
-    if (!created.id) throw new Error("方舟上传接口没有返回文件 ID");
-    for (let attempt = 0; attempt < 90; attempt += 1) {
-        progress?.(`方舟正在处理参考视频：${name}`, blob.size, blob.size);
-        const file = await transport.get<FileInfo>(buildApiUrl(channel.baseUrl, `/files/${encodeURIComponent(created.id)}`), { signal, timeout_ms: 20_000, validate_payload: false });
-        if (file.status === "failed") throw new Error(file.error?.message || "参考视频处理失败");
-        if (file.status === "active") {
-            const url = sourceUrl(file.download_url || "");
-            if (!url || url.startsWith("asset:")) throw new Error("方舟没有返回有效下载链接，请使用公网视频 URL 或真实 asset ID");
-            return url;
-        }
-        if (file.status !== "processing") throw new Error("方舟返回了未知的文件处理状态");
-        await providerDelay(2000, signal);
-    }
-    throw new Error(`参考视频处理尚未完成（文件 ${created.id}），请稍后重试`);
 }
 
 async function referenceSource(media: { name: string; url?: string; dataUrl?: string; storageKey?: string; arkAssetId?: string }, kind: "image" | "video" | "audio", channel: ModelChannel, signal?: AbortSignal, progress?: (label: string, loaded: number, total: number) => void, method = "auto", replacement?: string) {

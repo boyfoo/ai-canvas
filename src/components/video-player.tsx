@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentProps } from "react";
-import { isVideoProvider, MediaPlayer, MediaProvider, type MediaPlayerInstance, type VideoMimeType } from "@vidstack/react";
+import { isVideoProvider, MediaPlayer, MediaProvider, useMediaRemote, useMediaState, type MediaPlayerInstance, type VideoMimeType } from "@vidstack/react";
 import { DefaultVideoLayout, defaultLayoutIcons, type DefaultLayoutTranslations } from "@vidstack/react/player/layouts/default";
 import { detectVideoAudioTrack, detectVideoAudioTrackFromUrl } from "@/lib/video-poster";
+import { VideoPlayButton } from "./video-play-button";
 import "@vidstack/react/player/styles/base.css";
 import "@vidstack/react/player/styles/default/theme.css";
 import "@vidstack/react/player/styles/default/layouts/video.css";
@@ -152,6 +153,9 @@ export function VideoPlayer({
 
     const probeRemoteAudioTrack = () => {
         if (hasAudio === false) return;
+        // 外链原生播放不要求 CORS；除现有支持 Range 跨域读取的 LibTV 外，不为音轨增强额外 fetch。
+        const sourceUrl = new URL(src, window.location.href);
+        if (sourceUrl.origin !== window.location.origin && sourceUrl.hostname !== "libtv-res.liblib.art") return;
         const generation = audioProbeGenerationRef.current;
         void detectVideoAudioTrackFromUrl(src).then((detected) => {
             if (generation === audioProbeGenerationRef.current && detected !== undefined) setDetectedHasAudio(detected);
@@ -159,7 +163,7 @@ export function VideoPlayer({
     };
 
     const stopCanvasControlInteraction = (event: { target: EventTarget | null; nativeEvent?: Event; stopPropagation: () => void; preventDefault?: () => void }) => {
-        if (!isPlayerControlEvent(event)) return;
+        if (!isVideoPlayerControlEvent(event)) return;
         if (noAudio && isVolumeControlEvent(event)) {
             event.preventDefault?.();
             event.stopPropagation();
@@ -168,7 +172,7 @@ export function VideoPlayer({
         if (dataCanvasNoZoom) event.stopPropagation();
     };
     const stopCanvasControlClick = (event: React.MouseEvent) => {
-        if (!isPlayerControlEvent(event)) return;
+        if (!isVideoPlayerControlEvent(event)) return;
         if (noAudio && isVolumeControlEvent(event)) {
             event.preventDefault();
             event.stopPropagation();
@@ -242,6 +246,7 @@ export function VideoPlayer({
             onKeyDown={stopCanvasControlInteraction}
         >
             <MediaProvider />
+            {compactControls ? <VideoResumeButton title={title} /> : null}
             <DefaultVideoLayout
                 icons={layoutIcons}
                 translations={zhCNTranslations}
@@ -265,9 +270,21 @@ export function VideoPlayer({
     );
 }
 
-function isPlayerControlEvent(event: { target: EventTarget | null; nativeEvent?: Event }) {
-    if (event.target instanceof Element && event.target.closest(".vds-controls,.vds-menu-items")) return true;
-    return event.nativeEvent?.composedPath?.().some((item) => item instanceof Element && Boolean(item.closest(".vds-controls,.vds-menu-items"))) || false;
+/** 直接订阅播放器真实状态；暂停时保留当前画面和进度，不切回静态首帧预览。 */
+function VideoResumeButton({ title }: { title: string }) {
+    const paused = useMediaState("paused");
+    const canPlay = useMediaState("canPlay");
+    const seeking = useMediaState("seeking");
+    const error = useMediaState("error");
+    const remote = useMediaRemote();
+    if (!paused || !canPlay || seeking || error) return null;
+    // Vidstack 控件层为 10；恢复按钮在其下方，空白区域透传，避免遮挡底栏与画面手势。
+    return <div className="pointer-events-none absolute inset-0 z-[9]"><VideoPlayButton title={title} onPlay={() => remote.play()} /></div>;
+}
+
+export function isVideoPlayerControlEvent(event: { target: EventTarget | null; nativeEvent?: Event }) {
+    if (event.target instanceof Element && event.target.closest(".vds-controls,.vds-menu-items,[data-video-player-control]")) return true;
+    return event.nativeEvent?.composedPath?.().some((item) => item instanceof Element && Boolean(item.closest(".vds-controls,.vds-menu-items,[data-video-player-control]"))) || false;
 }
 
 function isVolumeControlEvent(event: { target: EventTarget | null; nativeEvent?: Event }) {

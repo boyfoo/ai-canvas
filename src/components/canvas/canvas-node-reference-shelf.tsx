@@ -1,10 +1,12 @@
-import { Image as AntImage, Popover } from "antd";
+import { Popover } from "antd";
 import { useState } from "react";
 import { AtSign, FileText, GripVertical, ImageIcon, Link2, Maximize2, Music2, Pencil, SlidersHorizontal, UserRound, Video, X } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { CanvasNodeType } from "@/types/canvas";
 import { canvasResourceDisplayName, type CanvasResourceReference } from "@/lib/canvas/canvas-resource-references";
+import { useResourceVideoPlayback } from "@/hooks/use-resource-video-playback";
+import { CanvasReferencePreview, canPreviewCanvasReference, referenceVideoSource, referenceVideoStorageKey } from "./canvas-reference-preview";
 
 type CanvasTheme = (typeof canvasThemes)[keyof typeof canvasThemes];
 
@@ -103,7 +105,7 @@ export function ConnectedReferenceShelf({
     onReplaceReferenceFiles?: (oldReference: CanvasResourceReference, files: File[]) => void;
 }) {
     const activeReferences = references.filter((item) => item.active && item.kind !== "skill");
-    const [imagePreview, setImagePreview] = useState<CanvasResourceReference | null>(null);
+    const [previewReference, setPreviewReference] = useState<CanvasResourceReference | null>(null);
     const [draggedReferenceId, setDraggedReferenceId] = useState<string | null>(null);
     const [dropTargetReferenceId, setDropTargetReferenceId] = useState<string | null>(null);
     if (!activeReferences.length) return null;
@@ -132,7 +134,7 @@ export function ConnectedReferenceShelf({
                 <div className="canvas-node-composer-references-track thin-scrollbar">
                     {activeReferences.map((reference, index) => {
                         const displayName = canvasResourceDisplayName(reference);
-                        const canPreview = Boolean(reference.previewUrl) && (reference.kind === "image" || reference.kind === "character" || reference.kind === "video");
+                        const canPreview = canPreviewCanvasReference(reference);
                         const isDropTarget = dropTargetReferenceId === reference.id;
                         return (
                             <span
@@ -231,7 +233,7 @@ export function ConnectedReferenceShelf({
                                     style={{ background: theme.toolbar.itemHover, color: theme.node.text, outlineColor: theme.node.activeStroke }}
                                     title={canPreview ? `预览 ${reference.title}` : `插入 @${displayName}`}
                                     aria-label={canPreview ? `预览 ${reference.title}` : `插入 @${displayName}`}
-                                    onClick={() => (canPreview ? setImagePreview(reference) : onInsert(reference))}
+                                    onClick={() => (canPreview ? setPreviewReference(reference) : onInsert(reference))}
                                 >
                                     <ReferenceThumbnail reference={reference} />
                                     {canPreview ? (
@@ -272,21 +274,7 @@ export function ConnectedReferenceShelf({
                     })}
                 </div>
             </div>
-            {imagePreview?.previewUrl ? (
-                <AntImage
-                    src={imagePreview.previewUrl}
-                    alt={imagePreview.title || imagePreview.label}
-                    style={{ display: "none" }}
-                    preview={{
-                        open: true,
-                        movable: true,
-                        minScale: 0.5,
-                        maxScale: 12,
-                        scaleStep: 0.25,
-                        onOpenChange: (open) => !open && setImagePreview(null),
-                    }}
-                />
-            ) : null}
+            {previewReference ? <CanvasReferencePreview reference={previewReference} onClose={() => setPreviewReference(null)} /> : null}
         </>
     );
 }
@@ -294,6 +282,7 @@ export function ConnectedReferenceShelf({
 function ReferenceThumbnail({ reference }: { reference: CanvasResourceReference }) {
     if (reference.kind === "image" && reference.previewUrl) return <img src={reference.previewUrl} alt="" className="size-full object-cover" />;
     if (reference.kind === "video" && reference.previewUrl) return <img src={reference.previewUrl} alt="" className="size-full bg-black object-cover" loading="lazy" decoding="async" />;
+    if (referenceVideoSource(reference) || referenceVideoStorageKey(reference)) return <ReferenceVideoPreview reference={reference} />;
     if (reference.kind === "character" && reference.previewUrl) return <img src={reference.previewUrl} alt="" className="size-full bg-black/5 object-contain" />;
 
     const Icon = reference.sourceType === CanvasNodeType.Drawing ? Pencil : reference.kind === "character" ? UserRound : reference.kind === "audio" ? Music2 : reference.kind === "video" ? Video : reference.kind === "image" ? ImageIcon : FileText;
@@ -302,4 +291,17 @@ function ReferenceThumbnail({ reference }: { reference: CanvasResourceReference 
             <Icon className="size-3.5 opacity-75" />
         </span>
     );
+}
+
+/** 与本地封面共用卡片外壳；没有图片封面时只显示原视频首帧，不跨域抽帧或保存文件。 */
+function ReferenceVideoPreview({ reference }: { reference: CanvasResourceReference }) {
+    const storageKey = referenceVideoStorageKey(reference);
+    const playback = useResourceVideoPlayback(storageKey, referenceVideoSource(reference));
+    if (playback.error) return <Video className="mx-auto size-3.5 opacity-75" />;
+    if (!playback.url) return <span className="grid size-full place-items-center"><Video className="size-3.5 opacity-75" /></span>;
+    const onError = () => { if (!playback.requestCompatible()) playback.fail(); };
+    return <video src={playback.url} aria-hidden muted playsInline preload="metadata" draggable={false} className="pointer-events-none size-full bg-black object-cover" onError={onError} onLoadedMetadata={(event) => {
+        const video = event.currentTarget;
+        if (Number.isFinite(video.duration) && video.duration > 0) video.currentTime = Math.min(0.001, video.duration / 2);
+    }} />;
 }

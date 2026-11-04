@@ -3,6 +3,7 @@ import { createClientId } from "@/lib/client-id";
 import { APP_STATE_STORE_NAME, localForageInstance } from "@/lib/localforage-storage";
 import { scopedStorageKey } from "@/lib/user-scope";
 import { browserVideoProvider } from "@/services/providers/ark-video-provider";
+import { ArkFileReferenceError } from "@/services/providers/ark-file-reference";
 import { channelConnectionSignature, resolveModelChannel, useConfigStore, type ModelChannel } from "@/stores/use-config-store";
 import type { BackendGenerationResult, BackendGenerationTaskOptions } from "@/services/api/generation-task";
 import type { GenerationTask, TaskLog } from "@/services/api/task-center";
@@ -92,10 +93,19 @@ export async function createBrowserGenerationTask(options: BackendGenerationTask
         } catch (error) {
             const status = error && typeof error === "object" && "status" in error ? Number(error.status) : 0;
             const uncertain = submitted && !(status >= 400 && status < 500 && status !== 408);
-            record.task = { ...record.task, status: uncertain ? "running" : "failed", stage: uncertain ? "submission_unknown" : "failed", errorCode: uncertain ? "submission_uncertain" : "provider_submission_failed", error: uncertain ? "方舟提交结果未确认，请先在方舟控制台查询；此任务不会自动重复提交" : error instanceof Error ? error.message : "视频提交失败" };
+            const referenceFailure = error instanceof ArkFileReferenceError ? error : undefined;
+            record.task = {
+                ...record.task,
+                status: uncertain ? "running" : "failed",
+                stage: uncertain ? "submission_unknown" : "failed",
+                errorCode: uncertain ? "submission_uncertain" : referenceFailure ? "input_inaccessible" : submitted ? "provider_submission_failed" : "provider_preparation_failed",
+                error: uncertain ? "方舟提交结果未确认，请先在方舟控制台查询；此任务不会自动重复提交" : error instanceof Error ? error.message : submitted ? "视频提交失败" : "生成素材准备失败，本次尚未提交生成",
+                ...(referenceFailure ? { failureDiagnostics: referenceFailure.failureDiagnostics } : {}),
+            };
             if (uncertain) record.task.outcome = { phase: "retrievable", regenerate: "blocked", reason: "submission_unknown" };
             delete record.request;
             await write(record); options.onTaskUpdate?.(record.task);
+            if (referenceFailure) throw referenceFailure;
             throw new Error(record.task.error, { cause: error });
         }
     });
@@ -209,7 +219,7 @@ export async function deleteBrowserGenerationTask(id: string) {
 }
 export async function browserTaskLogs(id: string): Promise<TaskLog[]> {
     const { task } = await read(id);
-    return [{ id: `${id}:state`, taskId: id, level: task.error ? "warn" : "info", stage: task.stage || task.status, provenance: "provider_observation", createdAt: task.updatedAt, summary: task.error || `方舟任务 ${task.providerRequestId || "尚未确认"}：${task.status}` }];
+    return [{ id: `${id}:state`, taskId: id, level: task.error ? "warn" : "info", stage: task.stage || task.status, provenance: task.providerRequestId ? "provider_observation" : "task_state", createdAt: task.updatedAt, summary: task.error || `方舟任务 ${task.providerRequestId || "尚未确认"}：${task.status}` }];
 }
 export async function updateBrowserTaskResult(id: string, resultJson: string, asset_id: string) {
     return navigator.locks.request(`browser-task:${id}`, async () => {

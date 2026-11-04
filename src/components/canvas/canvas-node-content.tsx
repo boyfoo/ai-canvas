@@ -20,6 +20,7 @@ import { buildLibTVImagePreviewUrl, buildLibTVVideoSourceUrl } from "@/lib/canva
 import type { CanvasResourceReference } from "@/lib/canvas/canvas-resource-references";
 import type { CanvasTheme } from "@/lib/canvas-theme";
 import { formatBytes } from "@/lib/image-utils";
+import { readMediaElementMetadata, type MediaMetadata } from "@/lib/media-metadata";
 import { resourceIdFromStorageKey } from "@/services/api/resources";
 import { cacheResourceImagePreviewObjectUrl, cacheResourceObjectUrl, getCachedResourceObjectUrl, peekCachedResourceObjectUrl, scheduleResourceBlobCache } from "@/services/resource-blob-cache";
 import { canvasImagePreviewSize } from "@/lib/canvas/canvas-image-preview-blob";
@@ -28,7 +29,7 @@ import { useResourceVideoPlayback } from "@/hooks/use-resource-video-playback";
 import { resolveImageUrl } from "@/services/image-storage";
 import { recordDiagnosticEvent } from "@/services/diagnostics/client-diagnostics";
 import { canvasNodeDiagnosticContext, recordCanvasVideoDiagnostic } from "@/services/diagnostics/canvas-media-diagnostics";
-import { acquireCanvasVideoPreview, canvasDerivedPreviewSourceKey, canvasVideoPreviewNeedsHydration } from "@/services/canvas-video-preview";
+import { acquireCanvasVideoPreview, canvasDerivedPreviewSourceKey, canvasVideoPreviewNeedsHydration, canvasVideoUsesDirectUrl } from "@/services/canvas-video-preview";
 import { acquireCanvasVideoSource } from "@/services/canvas-video-source";
 import { CanvasNodeType, type CanvasNodeData } from "@/types/canvas";
 import { getNodeDefinition } from "@/lib/canvas/node-registry";
@@ -36,6 +37,7 @@ import { ART_CRITIQUE_NODE_TYPE } from "@/lib/art-critique/contracts";
 import { createDefaultSubtitleStyle } from "@/types/timeline";
 import { CanvasResourceMentionTextarea } from "./canvas-resource-mention-textarea";
 import { CanvasAudioPlayer } from "./canvas-audio-player";
+import { VideoPlayButton } from "@/components/video-play-button";
 import { useCanvasNodeActions } from "./canvas-node-action-context";
 import { CanvasSubtitleOverlay } from "./canvas-subtitle-overlay";
 import { CanvasFileUploadContent } from "./canvas-file-upload-content";
@@ -379,6 +381,16 @@ function EmptyImageContent({ node, theme, isBatchRoot, batchCount, batchPreviewN
     return content;
 }
 
+function mergeVideoElementMetadata(current: CanvasNodeData, source: CanvasNodeData, metadata: MediaMetadata): CanvasNodeData {
+    // 媒体测量延迟提交时，不能把旧链接的结果写到已被替换的节点上。
+    if (current.metadata?.content !== source.metadata?.content || current.metadata?.storageKey !== source.metadata?.storageKey) return current;
+    const naturalWidth = metadata.width ?? current.metadata?.naturalWidth;
+    const naturalHeight = metadata.height ?? current.metadata?.naturalHeight;
+    const durationMs = metadata.durationMs ?? current.metadata?.durationMs;
+    if (current.metadata?.naturalWidth === naturalWidth && current.metadata?.naturalHeight === naturalHeight && current.metadata?.durationMs === durationMs) return current;
+    return { ...current, metadata: { ...current.metadata, naturalWidth, naturalHeight, durationMs } };
+}
+
 function VideoNodeContent({ node, theme, mediaActive = false, onMediaPlayRequest }: CanvasNodeContentProps) {
     if (node.metadata?.workflowKind === "video_retake") {
         return <VideoRetakeNodeContent node={node} theme={theme} mediaActive={mediaActive} onMediaPlayRequest={onMediaPlayRequest} />;
@@ -415,12 +427,11 @@ function VideoNodeContent({ node, theme, mediaActive = false, onMediaPlayRequest
         const video = box?.querySelector("video");
         if (!video) return;
         const handleLoadedMetadata = () => {
-            if (video.videoWidth <= 0 || video.videoHeight <= 0) return;
+            if (video.readyState < 1) return;
+            const metadata = readMediaElementMetadata(video);
             recordCanvasVideoDiagnostic(node, "metadata_loaded", video);
-            setVideoSize({ width: video.videoWidth, height: video.videoHeight });
-            if (!compatible && (node.metadata?.naturalWidth !== video.videoWidth || node.metadata?.naturalHeight !== video.videoHeight)) {
-                updateMediaNode?.(node.id, (current) => ({ ...current, metadata: { ...current.metadata, naturalWidth: video.videoWidth, naturalHeight: video.videoHeight } }));
-            }
+            if (metadata.width && metadata.height) setVideoSize({ width: metadata.width, height: metadata.height });
+            if (!compatible) updateMediaNode?.(node.id, (current) => mergeVideoElementMetadata(current, node, metadata));
         };
         video.addEventListener("loadedmetadata", handleLoadedMetadata);
         handleLoadedMetadata();
@@ -431,7 +442,7 @@ function VideoNodeContent({ node, theme, mediaActive = false, onMediaPlayRequest
             video.removeEventListener("timeupdate", handleTimeUpdate);
             video.removeEventListener("loadedmetadata", handleLoadedMetadata);
         };
-    }, [node.id, node.metadata?.naturalHeight, node.metadata?.naturalWidth, subtitleEntries.length, updateMediaNode, url, compatible]);
+    }, [node.id, node.metadata?.content, node.metadata?.storageKey, node.metadata?.naturalHeight, node.metadata?.naturalWidth, subtitleEntries.length, updateMediaNode, url, compatible]);
 
     if (!node.metadata?.content) return <EmptyVideoContent theme={theme} />;
 
@@ -515,6 +526,7 @@ function AudioNodeContent({ node, theme }: CanvasNodeContentProps) {
 
 export function InactiveVideoPreview({ node, theme, onPlay, hoverEnabled = true, showPlayButton = true }: Pick<CanvasNodeContentProps, "node" | "theme"> & { onPlay: () => void; hoverEnabled?: boolean; showPlayButton?: boolean }) {
     const previewRef = useRef<HTMLDivElement>(null);
+    const { updateMediaNode } = useCanvasNodeActions();
     const nearViewport = useNearViewport(previewRef);
     const sourceKey = canvasDerivedPreviewSourceKey(node);
     const [derivedPreview, setDerivedPreview] = useState<{ sourceKey: string; content: string }>();
@@ -522,6 +534,7 @@ export function InactiveVideoPreview({ node, theme, onPlay, hoverEnabled = true,
     const derivedPreviewUrl = derivedPreview?.sourceKey === sourceKey ? derivedPreview.content : "";
     const previewNeedsHydration = canvasVideoPreviewNeedsHydration(node);
     const previewUrl = previewNeedsHydration ? derivedPreviewUrl || persistedPreviewUrl : persistedPreviewUrl;
+    const { url: directVideoUrl } = useVideoPlaybackUrl(node, canvasVideoUsesDirectUrl(node) && nearViewport && !previewUrl && showPlayButton);
     const [hydrating, setHydrating] = useState(false);
 
     useEffect(() => {
@@ -530,7 +543,7 @@ export function InactiveVideoPreview({ node, theme, onPlay, hoverEnabled = true,
         if (!element) return;
         const content = node.metadata?.content || "";
         const fallback = node.metadata?.importSource?.provider === "libtv" ? buildLibTVVideoSourceUrl(content) : content;
-        return bindCanvasVideoHoverPreview(element, (signal) => acquireCanvasVideoSource(node.metadata?.storageKey, fallback, signal));
+        return bindCanvasVideoHoverPreview(element, (signal) => acquireCanvasVideoSource(node.metadata?.storageKey, fallback, signal), () => element.querySelector<HTMLVideoElement>("video[data-canvas-direct-preview]"));
     }, [hoverEnabled, node.metadata?.content, node.metadata?.storageKey, node.metadata?.importSource?.provider]);
 
     useEffect(() => {
@@ -556,17 +569,25 @@ export function InactiveVideoPreview({ node, theme, onPlay, hoverEnabled = true,
     if (previewUrl) {
         return <div ref={previewRef} className="group/video-preview relative size-full overflow-hidden rounded-[var(--node-radius)] bg-black">
             <CachedResourceImage storageKey={derivedPreviewUrl === previewUrl ? undefined : node.metadata?.videoPreview?.storageKey} src={previewUrl} alt={`${node.title || "视频"} 静态预览`} loading="lazy" decoding="async" draggable={false} className="pointer-events-none size-full select-none object-contain" fallback={<InactiveMediaCard icon={<Video className="size-7" />} title={node.title || "视频"} hint="首帧暂不可用，点击播放视频" theme={theme} />} loadingFallback={<InactiveMediaCard icon={<Video className="size-7" />} title={node.title || "视频"} hint="正在读取首帧" theme={theme} />} />
-            {showPlayButton ? <VideoPreviewPlayButton title={node.title || "视频"} onPlay={onPlay} /> : null}
+            {showPlayButton ? <VideoPlayButton title={node.title || "视频"} onPlay={onPlay} /> : null}
+        </div>;
+    }
+    if (directVideoUrl) {
+        return <div ref={previewRef} className="group/video-preview relative size-full overflow-hidden rounded-[var(--node-radius)] bg-black">
+            <video src={directVideoUrl} muted playsInline preload="metadata" aria-hidden data-canvas-direct-preview className="pointer-events-none size-full object-contain" onLoadedMetadata={(event) => {
+                // 小幅 seek 让浏览器展示首帧，不读取像素、不导出 canvas，也不设置 crossOrigin。
+                const video = event.currentTarget;
+                const metadata = readMediaElementMetadata(video);
+                updateMediaNode?.(node.id, (current) => mergeVideoElementMetadata(current, node, metadata));
+                if (Number.isFinite(video.duration) && video.duration > 0) video.currentTime = Math.min(0.001, video.duration / 2);
+            }} />
+            {showPlayButton ? <VideoPlayButton title={node.title || "视频"} onPlay={onPlay} /> : null}
         </div>;
     }
     return <div ref={previewRef} className="group/video-preview relative size-full">
         <InactiveMediaCard icon={<Video className="size-7" />} title={node.title || "视频"} hint={hydrating ? "正在生成首帧" : nearViewport ? "点击播放视频" : "进入视口后加载首帧"} theme={theme} />
-        {showPlayButton ? <VideoPreviewPlayButton title={node.title || "视频"} onPlay={onPlay} /> : null}
+        {showPlayButton ? <VideoPlayButton title={node.title || "视频"} onPlay={onPlay} /> : null}
     </div>;
-}
-
-function VideoPreviewPlayButton({ title, onPlay }: { title: string; onPlay: () => void }) {
-    return <button type="button" className="absolute left-1/2 top-1/2 z-[var(--node-z-overlay)] grid size-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-black/62 text-white shadow-lg backdrop-blur transition-[transform,background-color,opacity] hover:scale-105 hover:bg-black/78 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white" aria-label={`播放 ${title}`} title="播放视频" onPointerDown={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onPlay(); }}><Play className="ml-0.5 size-5 fill-current" /></button>;
 }
 
 function useVideoPlaybackUrl(node: CanvasNodeData, active: boolean) {
