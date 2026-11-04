@@ -227,7 +227,7 @@ export function useCanvasGenerationExecutor({
                             const cameraPrompt = buildCameraPrompt({ cameraId: cameraControl.camera, lensId: cameraControl.lens, focalLengthMm: cameraControl.focalLength, apertureF: cameraControl.aperture });
                             generationPrompt = `${generationPrompt}\n${cameraPrompt}`;
                         }
-                        const isPreparingEmptyImage = mode === "image" && sourceNode?.type === CanvasNodeType.Image && !sourceNode.metadata?.content;
+                        const isPreparingEmptyImage = mode === "image" && sourceNode?.type === CanvasNodeType.Image && !sourceNode.metadata?.content && !sourceNode.metadata?.storageKey;
 
                         let rawGenerationContext: Awaited<ReturnType<typeof hydrateNodeGenerationContext>>;
                         startGenerationRequest(nodeId, nodeId, nodeId, controller);
@@ -443,8 +443,8 @@ export function useCanvasGenerationExecutor({
                         }
 
                         // 已有内容节点只是本次生成的来源；任务状态归新目标所有，不能覆盖已成功结果。
-                        const markSourceStatus = !sourceNode?.metadata?.content && !editingTextNode;
                         const hasPreviousResult = Boolean(sourceNode?.metadata?.content || sourceNode?.metadata?.storageKey);
+                        const markSourceStatus = !hasPreviousResult && !editingTextNode;
                         const statusPrompt = sourceNode?.type === CanvasNodeType.Config ? effectivePrompt : prompt;
                         if (markSourceStatus)
                             setNodes((current) =>

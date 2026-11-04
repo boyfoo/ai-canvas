@@ -12,6 +12,7 @@ import type { AiConfig } from "@/stores/use-config-store";
 import type { CanvasConnectionApproach } from "@/lib/canvas/canvas-connection-tilt";
 import type { CanvasBatchConnectionPreview } from "@/lib/canvas/canvas-batch-connection";
 import { sortCanvasNodesByStackOrder, type CanvasNodeStackOrder } from "@/lib/canvas/canvas-node-stack-order";
+import { canvasMediaResultsMatch } from "@/lib/canvas/canvas-media-versions";
 import type { CanvasResourceReference } from "@/lib/canvas/canvas-resource-references";
 import { isFrameNode } from "@/lib/canvas/canvas-frame";
 import type { CanvasDisplayConnection, CanvasFolderStyle, CanvasFolderTheme, CanvasNodeData, ConnectionHandle, Position, SelectionBox } from "@/types/canvas";
@@ -188,6 +189,21 @@ export const CanvasProjectWorldLayers = memo(function CanvasProjectWorldLayers(p
         ...props.visibleNodes.filter(isFrameNode),
         ...sortCanvasNodesByStackOrder(props.visibleNodes.filter((node) => !isFrameNode(node)), props.nodeStackOrder),
     ], [props.nodeStackOrder, props.visibleNodes]);
+    const historyByOwnerId = useMemo(() => {
+        const histories = new Map<string, { count: number; previews: CanvasNodeData[] }>();
+        for (const node of props.nodeById.values()) {
+            const ownerId = node.metadata?.versionStackOwnerId;
+            if (!ownerId || ownerId === node.id) continue;
+            const owner = props.nodeById.get(ownerId);
+            if (!owner || (owner.metadata?.status === "success" && canvasMediaResultsMatch(node, owner))) continue;
+            const history = histories.get(ownerId) || { count: 0, previews: [] };
+            history.count += 1;
+            history.previews.unshift(node);
+            if (history.previews.length > 3) history.previews.pop();
+            histories.set(ownerId, history);
+        }
+        return histories;
+    }, [props.nodeById]);
     const batchPreviews = useMemo(() => new Map(props.visibleNodes.filter((node) => node.metadata?.isBatchRoot).map((node) => [
         node.id,
         (node.metadata?.batchChildIds || []).filter((id) => id !== node.metadata?.primaryImageId)
@@ -272,9 +288,12 @@ export const CanvasProjectWorldLayers = memo(function CanvasProjectWorldLayers(p
                         isRelated={props.relatedNodeIds.has(node.id)}
                         isFocusRelated={props.activeNodeId === node.id}
                         isConnectionTarget={props.connectionTargetNodeId === node.id || props.batchConnectionPreview?.targetNodeId === node.id}
+                        connectionActive={Boolean(props.connectingParams || props.batchConnectionPreview)}
                         connectionApproach={props.connectionApproach?.nodeId === node.id ? props.connectionApproach.point : undefined}
                         forceInputVisible={Boolean(props.batchConnectionPreview)}
                         batchCount={props.batchChildCountById.get(node.id) || 0}
+                        historyCount={historyByOwnerId.get(node.id)?.count || 0}
+                        historyPreviewNodes={historyByOwnerId.get(node.id)?.previews}
                         batchExpanded={Boolean(node.metadata?.imageBatchExpanded)}
                         batchPreviewNodes={batchPreviews.get(node.id)}
                         batchClosing={Boolean(node.metadata?.batchRootId && props.collapsingBatchIds.has(node.metadata.batchRootId))}

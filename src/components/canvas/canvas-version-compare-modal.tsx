@@ -1,42 +1,62 @@
-import { Button, Modal } from "antd";
-import { Check, Star } from "lucide-react";
+import { useState } from "react";
+import { Check, LocateFixed } from "lucide-react";
 
-import { canvasThemes } from "@/lib/canvas-theme";
-import { canvasNodeVideoPreviewUrl } from "@/lib/canvas/canvas-media-preview";
-import { useActiveTheme } from "@/stores/canvas/use-canvas-theme-store";
-import { CanvasNodeType, type CanvasNodeData } from "@/types/canvas";
+import type { CanvasNodeData } from "@/types/canvas";
+import { CanvasMediaVersionPreview } from "./canvas-media-version-preview";
+import { CanvasMediaLightbox, CanvasMediaPreviewFrame, CanvasPreviewButton, CanvasPreviewToolbar } from "./media-preview";
 
-export function CanvasVersionCompareModal({ open, versions, onClose, onSetPrimary, onFocus }: { open: boolean; versions: CanvasNodeData[]; onClose: () => void; onSetPrimary: (nodeId: string) => void; onFocus: (nodeId: string) => void }) {
-    const theme = canvasThemes[useActiveTheme()];
-    const modalWidth = Math.min(1180, Math.max(440, 112 + versions.length * 340));
+export type CanvasVersionCompareModalProps = {
+    open: boolean;
+    versions: CanvasNodeData[];
+    onClose: () => void;
+    onSetPrimary: (nodeId: string) => boolean;
+    onFocus: (nodeId: string) => void;
+};
+
+/** 历史业务适配层；通用预览组件不接收版本元数据或恢复回调。 */
+export function CanvasVersionCompareModal({ open, versions, onClose, onSetPrimary, onFocus }: CanvasVersionCompareModalProps) {
+    const hasArchivedVersions = versions.some((node) => Boolean(node.metadata?.versionStackOwnerId));
+    const familyId = versions[0]?.metadata?.versionOfNodeId || versions[0]?.metadata?.versionStackOwnerId || versions[0]?.id;
     return (
-        <Modal title="版本对比" open={open} footer={null} width={modalWidth} centered onCancel={onClose} styles={{ body: { overflow: "hidden" } }}>
-            <div className="thin-scrollbar grid max-h-[70vh] grid-flow-col auto-cols-[328px] gap-3 overflow-x-auto pb-2">
-                {versions.map((node) => {
-                    const videoPreview = canvasNodeVideoPreviewUrl(node);
-                    return (
-                    <article key={node.id} className="overflow-hidden rounded-[var(--r-lg)] border" style={{ borderColor: node.metadata?.versionPrimary ? theme.accent.primary : theme.node.stroke, background: theme.node.panel, boxShadow: node.metadata?.versionPrimary ? "0 0 0 2px " + theme.accent.primarySoft : undefined }}>
-                        <div className="flex h-11 items-center justify-between gap-3 border-b px-3" style={{ borderColor: theme.node.stroke }}>
-                            <div className="flex min-w-0 flex-1 items-center gap-2"><span className="grid size-7 shrink-0 place-items-center rounded-[var(--r-full)] border text-[var(--node-badge-fs)] font-semibold leading-none" style={{ background: node.metadata?.versionPrimary ? theme.accent.primarySoft : theme.toolbar.itemHover, borderColor: node.metadata?.versionPrimary ? theme.accent.primary : theme.node.stroke, color: node.metadata?.versionPrimary ? theme.accent.primary : theme.node.text }}>{node.metadata?.versionLabel || "-"}</span><span className="min-w-0 truncate text-xs font-semibold" title={node.title}>{node.title}</span></div>
-                            {node.metadata?.versionPrimary ? <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[var(--fs-tiny)] font-medium" style={{ color: theme.accent.primary }}><Check className="size-3" />主版本</span> : null}
-                        </div>
-                        <button type="button" className="block h-52 w-full overflow-hidden" style={{ background: theme.node.fill }} onClick={() => onFocus(node.id)}>
-                            {node.type === CanvasNodeType.Image && node.metadata?.content ? <img src={node.metadata.content} alt={node.title || "版本图片"} className="size-full object-contain" /> : videoPreview ? <img src={videoPreview} alt={node.title || "版本视频"} className="size-full object-contain" loading="lazy" decoding="async" /> : <span className="grid size-full place-items-center px-4 text-center text-xs" style={{ color: theme.node.muted }}>点击定位到画布节点</span>}
-                        </button>
-                        <div className="space-y-2 p-3 text-[var(--fs-label)]">
-                            <Info label="模型" value={node.metadata?.model || "默认模型"} />
-                            <Info label="尺寸" value={node.metadata?.size || "默认尺寸"} />
-                            <div><div className="whitespace-nowrap opacity-45">提示词</div><div className="mt-1 line-clamp-5 whitespace-pre-wrap break-words leading-5">{node.metadata?.composerContent || node.metadata?.prompt || "未填写"}</div></div>
-                            <Button block size="small" className="whitespace-nowrap" type={node.metadata?.versionPrimary ? "default" : "primary"} disabled={node.metadata?.versionPrimary} icon={<Star className="size-3.5" />} onClick={() => onSetPrimary(node.id)}>{node.metadata?.versionPrimary ? "当前主版本" : "设为主版本"}</Button>
-                        </div>
-                    </article>
-                    );
-                })}
-            </div>
-        </Modal>
+        <CanvasMediaLightbox open={open} title={hasArchivedVersions ? "历史结果" : "版本对比"} onClose={onClose}>
+            <VersionBrowser key={familyId} versions={versions} hasArchivedVersions={hasArchivedVersions} onClose={onClose} onSetPrimary={onSetPrimary} onFocus={onFocus} />
+        </CanvasMediaLightbox>
     );
 }
 
-function Info({ label, value }: { label: string; value: string }) {
-    return <div className="flex min-w-0 items-center gap-3"><span className="w-9 shrink-0 whitespace-nowrap opacity-45">{label}</span><span className="min-w-0 flex-1 truncate text-right font-medium" title={value}>{value}</span></div>;
+function VersionBrowser({ versions, hasArchivedVersions, onClose, onSetPrimary, onFocus }: Omit<CanvasVersionCompareModalProps, "open"> & { hasArchivedVersions: boolean }) {
+    const current = versions.find((node) => node.metadata?.versionPrimary) || (hasArchivedVersions ? versions.find((node) => !node.metadata?.versionStackOwnerId) : undefined);
+    const [selectedId, setSelectedId] = useState(() => current?.id || versions[0]?.id);
+    // 恢复后快照会被当前结果去重隐藏，回到稳定的当前节点，不保留失效选中项。
+    const selected = versions.find((node) => node.id === selectedId) || current || versions[0];
+    const selectedIndex = selected ? versions.findIndex((node) => node.id === selected.id) : -1;
+    const selectedIsCurrent = Boolean(selected && current?.id === selected.id);
+    const currentLabel = hasArchivedVersions ? "当前结果" : "主版本";
+    const previous = versions[selectedIndex - 1];
+    const next = versions[selectedIndex + 1];
+
+    if (!selected) return <div className="pointer-events-none flex justify-center pt-10">
+        <CanvasPreviewToolbar label="历史版本操作">
+            <span className="px-2 text-[var(--fs-label)]">暂无版本</span>
+            <CanvasPreviewButton label="关闭预览" onClick={onClose}>关闭</CanvasPreviewButton>
+        </CanvasPreviewToolbar>
+    </div>;
+
+    return <CanvasMediaPreviewFrame
+        width={selected.metadata?.naturalWidth || selected.width}
+        height={selected.metadata?.naturalHeight || selected.height}
+        label="选中版本预览"
+        onClose={onClose}
+        onPrevious={previous ? () => setSelectedId(previous.id) : undefined}
+        onNext={next ? () => setSelectedId(next.id) : undefined}
+        toolbar={<CanvasPreviewToolbar label="历史版本操作">
+            <span className="px-1 text-[var(--fs-label)]" style={{ lineHeight: "20px" }} title={selected.title}>版本 {selected.metadata?.versionLabel || selectedIndex + 1}</span>
+            <span className="pr-1 text-[var(--fs-label)] tabular-nums opacity-60" style={{ lineHeight: "20px" }} aria-label={"第 " + (selectedIndex + 1) + " 个，共 " + versions.length + " 个版本"} aria-live="polite">{selectedIndex + 1} / {versions.length}</span>
+            <span aria-hidden className="aceternity-dock-separator mx-1 h-4 w-px shrink-0" />
+            <CanvasPreviewButton label="定位到画布" icon={<LocateFixed className="size-3.5" />} onClick={() => onFocus(selected.metadata?.versionStackOwnerId || selected.id)} />
+            <CanvasPreviewButton label={selectedIsCurrent ? currentLabel : "使用此版本"} disabled={selectedIsCurrent} icon={selectedIsCurrent ? <Check className="size-3.5" /> : undefined} onClick={() => { if (!selectedIsCurrent && onSetPrimary(selected.id)) onClose(); }}>{selectedIsCurrent ? currentLabel : "使用此版本"}</CanvasPreviewButton>
+        </CanvasPreviewToolbar>}
+    >
+        <CanvasMediaVersionPreview key={selected.id} node={selected} />
+    </CanvasMediaPreviewFrame>;
 }

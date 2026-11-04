@@ -2,7 +2,7 @@ import { NODE_DEFAULT_SIZE } from "@/constant/canvas";
 import type { CanvasNodeData } from "@/types/canvas";
 
 const COPY_SUFFIX = /(_copy\d+|\s+Copy)$/i;
-const VERSION_SUFFIX = /\s*·\s*([A-Z])\s*$/;
+const VERSION_SUFFIX = /\s*·\s*([A-Z]+)\s*$/;
 const PROMPT_TITLE_LENGTH = 32;
 
 export function buildImageGenerationNodeTitle(prompt: string, sourceNode?: CanvasNodeData, outputIndex?: number, outputCount = 1) {
@@ -21,7 +21,7 @@ export function buildImageGenerationNodeTitle(prompt: string, sourceNode?: Canva
 
 function validVersionLabel(value?: string) {
     const normalized = value?.trim().toUpperCase() || "";
-    return /^[A-Z]$/.test(normalized) ? normalized : "";
+    return /^[A-Z]+$/.test(normalized) ? normalized : "";
 }
 
 /**

@@ -4,6 +4,7 @@ import { buildNodeGenerationInputs, type NodeGenerationInput } from "@/component
 import { isFrameNode } from "@/lib/canvas/canvas-frame";
 import { canvasLodTypicalNodeExtent, resolveCanvasLodActive } from "@/lib/canvas/canvas-lod";
 import { sameNodeSemanticData } from "@/lib/canvas/canvas-project-domain";
+import { canvasMediaResultsMatch } from "@/lib/canvas/canvas-media-versions";
 import { canvasNodeRenderPadding, CANVAS_MAX_RENDERED_CONNECTIONS, shouldReduceCanvasMediaEffects } from "@/lib/canvas/canvas-performance-mode";
 import { CANVAS_GESTURE_RETAIN_LIMIT, type CanvasVirtualizationViewport } from "@/lib/canvas/canvas-viewport-render-sync";
 import { buildCanvasNodeMentionReferenceMap, buildCanvasResourceReferences, reuseCanvasResourceReferences, type CanvasResourceReference } from "@/lib/canvas/canvas-resource-references";
@@ -99,6 +100,11 @@ export function useCanvasRenderModel({
         const batchChildIndexByRootId = new Map<string, Map<string, number>>();
 
         for (const node of nodes) {
+            // 历史快照参与持久化和素材引用保留，仅由所属节点的历史入口展示。
+            if (node.metadata?.versionStackOwnerId) {
+                renderHiddenNodeIds.add(node.id);
+                continue;
+            }
             const rootId = node.metadata?.batchRootId;
             const root = rootId ? nodeById.get(rootId) : undefined;
             if (root && !root.metadata?.imageBatchExpanded) {
@@ -173,12 +179,13 @@ export function useCanvasRenderModel({
                 return old === node || (old.id === node.id && old.type === node.type && old.parentId === node.parentId
                     && old.position.x === node.position.x && old.position.y === node.position.y && old.width === node.width && old.height === node.height
                     && old.metadata?.batchRootId === node.metadata?.batchRootId && old.metadata?.imageBatchExpanded === node.metadata?.imageBatchExpanded
+                    && old.metadata?.versionStackOwnerId === node.metadata?.versionStackOwnerId
                     && old.metadata?.frame?.collapsed === node.metadata?.frame?.collapsed);
             });
         if (!geometryUnchanged) geometryNodesRef.current = nodes;
         return geometryNodesRef.current;
     }, [nodes]);
-    const nodeSpatialIndex = useMemo(() => buildCanvasSpatialIndex(geometryNodes.map((node) => ({ id: node.id, bounds: canvasNodeBounds(node), value: node.id }))), [geometryNodes]);
+    const nodeSpatialIndex = useMemo(() => buildCanvasSpatialIndex(geometryNodes.filter((node) => !node.metadata?.versionStackOwnerId).map((node) => ({ id: node.id, bounds: canvasNodeBounds(node), value: node.id }))), [geometryNodes]);
     const renderedNodeIdsRef = useRef<Set<string>>(new Set());
     const retainedNodeIdsRef = useRef<Set<string>>(new Set());
     const domNodeIdsRef = useRef<Set<string>>(new Set());
@@ -282,12 +289,22 @@ export function useCanvasRenderModel({
     }, [nodes]);
     const versionCompareNodes = useMemo(() => {
         if (!versionCompareRootId) return [];
+        const archived = nodes.filter((node) => node.metadata?.versionStackOwnerId === versionCompareRootId);
+        if (archived.length) {
+            const owner = nodes.find((node) => node.id === versionCompareRootId);
+            const history = archived.filter((node) => !owner || owner.metadata?.status !== "success" || !canvasMediaResultsMatch(node, owner));
+            return [...(owner ? [owner] : []), ...history.reverse()];
+        }
         return nodes.filter((node) => (node.metadata?.versionOfNodeId || node.id) === versionCompareRootId).sort((a, b) => (a.metadata?.versionLabel || "").localeCompare(b.metadata?.versionLabel || ""));
     }, [nodes, versionCompareRootId]);
 
     const selectedNodeIdForToolbar = selectedNodeIds.size === 1 ? [...selectedNodeIds][0] : null;
     const toolbarCandidate = selectedNodeIdForToolbar ? nodeById.get(selectedNodeIdForToolbar) || null : null;
     const toolbarNode = isFrameNode(toolbarCandidate) ? null : toolbarCandidate;
+    const toolbarHasHistory = useMemo(() => Boolean(toolbarNode && nodes.some((candidate) =>
+        candidate.id !== toolbarNode.id && candidate.metadata?.versionStackOwnerId === toolbarNode.id
+        && (toolbarNode.metadata?.status !== "success" || !canvasMediaResultsMatch(candidate, toolbarNode)),
+    )), [nodes, toolbarNode]);
     const infoNode = infoNodeId ? nodeById.get(infoNodeId) || null : null;
     const maskEditNode = maskEditNodeId ? nodeById.get(maskEditNodeId) || null : null;
     const annotationNode = annotationNodeId ? nodeById.get(annotationNodeId) || null : null;
@@ -351,6 +368,7 @@ export function useCanvasRenderModel({
             const fromNode = geometryById.get(connection.fromNodeId);
             const toNode = geometryById.get(connection.toNodeId);
             if (!fromNode || !toNode) return;
+            if (fromNode.metadata?.versionStackOwnerId || toNode.metadata?.versionStackOwnerId) return;
             if (hiddenByBatch(fromNode) || hiddenByBatch(toNode)) return;
             const fromParent = fromNode.parentId ? geometryById.get(fromNode.parentId) : null;
             const toParent = toNode.parentId ? geometryById.get(toNode.parentId) : null;
@@ -482,6 +500,7 @@ export function useCanvasRenderModel({
         skillMentionReferences,
         splitNode,
         toolbarNode,
+        toolbarHasHistory,
         upscaleNode,
         versionCompareNodes,
         visibleNodes,

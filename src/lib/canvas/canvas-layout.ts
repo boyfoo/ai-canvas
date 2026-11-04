@@ -256,7 +256,19 @@ export function nextCanvasVersionLabel(rootId: string, nodes: CanvasNodeData[]) 
         .filter((node) => (node.metadata?.versionOfNodeId || node.id) === rootId)
         .map((node) => node.metadata?.versionLabel)
         .filter((label): label is string => Boolean(label));
-    if (!labels.length) return "B";
-    const highest = Math.max(...labels.map((label) => label.charCodeAt(0)), "A".charCodeAt(0));
-    return String.fromCharCode(Math.min("Z".charCodeAt(0), highest + 1));
+    // 历史叠卡可以持续积累，Z 之后继续 AA，避免不同历史共用同一个版本名。
+    let highest = 1;
+    for (const label of labels) {
+        if (!/^[A-Z]+$/.test(label)) continue;
+        const value = [...label].reduce((total, character) => total * 26 + character.charCodeAt(0) - 64, 0);
+        if (Number.isSafeInteger(value)) highest = Math.max(highest, value);
+    }
+    let next = highest + 1;
+    let label = "";
+    while (next > 0) {
+        next -= 1;
+        label = String.fromCharCode(65 + next % 26) + label;
+        next = Math.floor(next / 26);
+    }
+    return label;
 }

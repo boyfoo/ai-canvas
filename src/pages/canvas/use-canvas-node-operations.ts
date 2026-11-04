@@ -23,6 +23,7 @@ import { usePluginStore } from "@/stores/use-plugin-store";
 import { useCanvasStore } from "@/stores/canvas/use-canvas-store";
 import type { DirectorScene } from "@/types/director";
 import { isCanvasNodeGenerating } from "@/lib/canvas/canvas-node-task-state";
+import { restoreCanvasMediaVersion } from "@/lib/canvas/canvas-media-versions";
 import { cancelWorkflowRun } from "@/services/api/canvas-workflows";
 import { cancelGenerationTask } from "@/services/api/task-center";
 import { canvasTaskConfirmation } from "./canvas-task-confirmation";
@@ -245,7 +246,7 @@ export function useCanvasNodeOperations({
         const selectedIds = selectedNodeIdsRef.current;
         const hasSelection = selectedIds.size > 0;
         const candidates = currentNodes.filter((node) => {
-            if (node.metadata?.locked || isFrameNode(node) || isHiddenBatchChild(node, currentNodes)) return false;
+            if (node.metadata?.locked || node.metadata?.versionStackOwnerId || isFrameNode(node) || isHiddenBatchChild(node, currentNodes)) return false;
             if (hasSelection) return selectedIds.has(node.id);
             return !node.parentId;
         });
@@ -550,13 +551,22 @@ export function useCanvasNodeOperations({
         recoveryConfirmation.current = confirmation;
     }, [duplicateNode, modal, nodesRef]);
 
-    const setPrimaryVersion = useCallback((nodeId: string) => {
+    const setPrimaryVersion = useCallback((nodeId: string): boolean => {
         const target = nodesRef.current.find((node) => node.id === nodeId);
-        if (!target) return;
+        if (!target) return false;
+        if (target.metadata?.versionStackOwnerId) {
+            const restored = restoreCanvasMediaVersion(nodesRef.current, nodeId);
+            if (restored.error) { message.warning(restored.error); return false; }
+            commitNodes(restored.nodes);
+            selectNodes(new Set([restored.ownerId]));
+            message.success(`已切换到历史版本 ${target.metadata.versionLabel || ""}`.trim());
+            return true;
+        }
         const rootId = target.metadata?.versionOfNodeId || target.id;
         commitNodes(nodesRef.current.map((node) => (node.metadata?.versionOfNodeId || node.id) === rootId ? { ...node, metadata: { ...node.metadata, versionPrimary: node.id === nodeId } } : node));
         message.success(`已将 ${target.metadata?.versionLabel || target.title} 设为主版本`);
-    }, [commitNodes, message, nodesRef]);
+        return true;
+    }, [commitNodes, message, nodesRef, selectNodes]);
 
     const copyNodesToClipboard = useCallback((targetIds: Set<string>) => {
         if (!targetIds.size) return;

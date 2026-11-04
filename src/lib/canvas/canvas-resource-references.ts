@@ -360,14 +360,16 @@ export function buildAssetMentionReferences(assets: Asset[]): CanvasResourceRefe
 export function buildCanvasResourceReferences(nodes: CanvasNodeData[], connections: CanvasConnection[], contextNodeId?: string | null, targetNodes?: CanvasNodeData[]) {
     const contextNodes = contextNodeId ? getMentionResourceNodes(contextNodeId, nodes, connections) : [];
     const sourceNodes = targetNodes ? uniqueCanvasNodes([...targetNodes, ...contextNodes]) : nodes;
-    const globalReferences = labelResourceNodes(sourceNodes.filter(isResourceNode), false);
+    const contextIds = new Set(contextNodes.map((node) => node.id));
+    // 归档不进入普通“当前画布”素材菜单；已有显式输入继续保留原解析与编号。
+    const globalReferences = labelResourceNodes(sourceNodes.filter((node) => isResourceNode(node) && (!node.metadata?.versionStackOwnerId || contextIds.has(node.id))), false);
     const activeByNodeId = new Map(labelResourceNodes(contextNodes, true).map((reference) => [reference.nodeId, reference]));
     return globalReferences.map((reference) => activeByNodeId.get(reference.nodeId) || reference);
 }
 
 /** Agent 的 @ 菜单覆盖整个画布，而不是只覆盖可作为生成输入的资源节点。 */
 export function buildCanvasAgentMentionReferences(nodes: CanvasNodeData[]): CanvasResourceReference[] {
-    return nodes.map((node, index) => {
+    return nodes.filter((node) => !node.metadata?.versionStackOwnerId).map((node, index) => {
         const kind = resourceKind(node) || "text";
         const fallbackTitle = `节点 ${index + 1}`;
         return {

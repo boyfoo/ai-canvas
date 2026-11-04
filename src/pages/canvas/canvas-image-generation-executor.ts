@@ -8,6 +8,7 @@ import { buildImageGenerationNodeTitle, promptNodeTitle } from "@/lib/canvas/can
 import { nodeSizeFromRatio } from "@/lib/canvas/canvas-node-size";
 import { canvasImageReferenceLimitError, buildImageGenerationMetadata, clearInPlaceMediaOutputMetadata, getGenerationCount, isGenerationCanceled, resetGenerationTaskMetadata, runCanvasGenerationTaskToConsumer } from "@/lib/canvas/canvas-project-generation";
 import { imageGenerationReferenceConnections } from "@/lib/canvas/canvas-resource-references";
+import { prepareInPlaceMediaVersion } from "@/lib/canvas/canvas-media-versions";
 import { canvasGenerationPromptMetadata } from "@/lib/canvas/canvas-generation-submission";
 import { mediaResultMetadata } from "@/lib/canvas/canvas-node-semantics";
 import { CONTENT_MODERATION_ERROR_CODE, type GenerationFailureMetadata } from "@/lib/generation-error";
@@ -106,8 +107,10 @@ export async function executeImageGeneration({
         canvasConnections = useCanvasStore.getState().projects.find(project => project.id === projectId)?.connections || canvasConnections;
         if (!canvasNodes.some(node => node.id === nodeId)) throw new Error("原节点已删除，未开始生成");
     }
-    const retired = reuseSourceNode && sourceNode ? retireImageBatchChildren(sourceNode, canvasNodes, canvasConnections) : { nodes: canvasNodes, connections: canvasConnections, removedIds: [] as string[] };
+    const versionedNodes = reuseSourceNode ? prepareInPlaceMediaVersion(canvasNodes, nodeId) : canvasNodes;
+    const retired = reuseSourceNode && sourceNode ? retireImageBatchChildren(sourceNode, versionedNodes, canvasConnections) : { nodes: versionedNodes, connections: canvasConnections, removedIds: [] as string[] };
     const workingNodes = retired.nodes;
+    const titleSourceNode = workingNodes.find((node) => node.id === nodeId) || sourceNode;
     const workingConnections = retired.connections;
     registerPendingNodeIds(reuseSourceNode && count > 1 ? childIds : [rootId, ...childIds]);
     const rootWidth = outputNodeSize.width;
@@ -116,7 +119,7 @@ export async function executeImageGeneration({
         x: parentPosition.x + parentWidth + 96,
         y: parentPosition.y + parentHeight / 2 - rootHeight / 2,
     };
-    const rootPosition = findAvailableGenerationGroupPosition(workingNodes.filter(node => node.id !== rootId), reuseSourceNode ? parentPosition : preferredPosition, imageGenerationGroupSize({ width: rootWidth, height: rootHeight }, outputNodeSize, childIds.length));
+    const rootPosition = findAvailableGenerationGroupPosition(workingNodes.filter(node => node.id !== rootId && !node.metadata?.versionStackOwnerId), reuseSourceNode ? parentPosition : preferredPosition, imageGenerationGroupSize({ width: rootWidth, height: rootHeight }, outputNodeSize, childIds.length));
 
     const reusableRootMetadata = reuseSourceNode
         ? count > 1
@@ -126,7 +129,7 @@ export async function executeImageGeneration({
     const rootNode: CanvasNodeData = {
         id: rootId,
         type: CanvasNodeType.Image,
-        title: buildImageGenerationNodeTitle(effectivePrompt, sourceNode),
+        title: buildImageGenerationNodeTitle(effectivePrompt, titleSourceNode),
         position: rootPosition,
         width: rootWidth,
         height: rootHeight,
@@ -157,7 +160,7 @@ export async function executeImageGeneration({
     const childNodes: CanvasNodeData[] = childIds.map((id, index) => ({
         id,
         type: CanvasNodeType.Image,
-        title: buildImageGenerationNodeTitle(effectivePrompt, sourceNode, index, count),
+        title: buildImageGenerationNodeTitle(effectivePrompt, titleSourceNode, index, count),
         position: imageGenerationChildPosition(rootNode.position, rootNode.width, outputNodeSize, index),
         width: outputNodeSize.width,
         height: outputNodeSize.height,
@@ -188,7 +191,10 @@ export async function executeImageGeneration({
         ...workingNodes.map((node) => {
             if (node.id !== nodeId) return node;
             if (isConfigNode) return { ...node, metadata: { ...node.metadata, ...canvasGenerationPromptMetadata(prompt, effectivePrompt), status: NODE_STATUS_LOADING, errorDetails: undefined } };
-            if (reuseSourceNode) return rebaseCanvasGenerationTarget(node, rootNode, sourceNode);
+            if (reuseSourceNode) {
+                const rebased = rebaseCanvasGenerationTarget(node, rootNode, sourceNode);
+                return { ...rebased, title: node.title === sourceNode?.title ? rootNode.title : node.title };
+            }
             if (isImageNode) return node.metadata?.content ? node : { ...node, metadata: { ...node.metadata, status: NODE_STATUS_IDLE, errorDetails: undefined } };
             return {
                 ...node,

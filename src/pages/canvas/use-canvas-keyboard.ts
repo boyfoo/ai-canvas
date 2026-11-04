@@ -185,7 +185,7 @@ export function useCanvasKeyboard({
             }
             if (isModifierShortcut && !event.altKey && key === "a") {
                 event.preventDefault();
-                pageUi.getState().setSelectedNodeIds(new Set(nodesRef.current.map((node) => node.id)));
+                pageUi.getState().setSelectedNodeIds(new Set(nodesRef.current.filter((node) => !node.metadata?.versionStackOwnerId).map((node) => node.id)));
                 pageUi.getState().setSelectedConnectionId(null);
                 pageUi.getState().setContextMenu(null);
                 cancelSelectionBox();

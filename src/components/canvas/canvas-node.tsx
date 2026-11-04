@@ -4,6 +4,7 @@ import { AlertCircle, BookOpenCheck, CheckCircle2, ChevronRight, Clapperboard, C
 
 import { useCanvasNodeActions } from "./canvas-node-action-context";
 import { CanvasConnectionGlyph } from "./canvas-connection-glyph";
+import { CanvasMediaVersionStack } from "./canvas-media-version-stack";
 import { useCanvasConnectionFeedback } from "./use-canvas-connection-feedback";
 import { canvasNodeFailureView } from "@/lib/canvas/canvas-node-failure-view";
 
@@ -36,6 +37,7 @@ type CanvasNodeProps = {
     isRelated: boolean;
     isFocusRelated: boolean;
     isConnectionTarget: boolean;
+    connectionActive?: boolean;
     connectionApproach?: Position;
     forceInputVisible?: boolean;
     showImageInfo: boolean;
@@ -46,6 +48,8 @@ type CanvasNodeProps = {
     renderNodeContent?: (node: CanvasNodeData) => ReactNode;
     drawingProjectId?: string;
     batchCount?: number;
+    historyCount?: number;
+    historyPreviewNodes?: CanvasNodeData[];
     batchPreviewNodes?: CanvasNodeData[];
     batchExpanded?: boolean;
     batchClosing?: boolean;
@@ -97,6 +101,7 @@ export const CanvasNode = React.memo(function CanvasNode({
     isRelated,
     isFocusRelated,
     isConnectionTarget,
+    connectionActive = false,
     connectionApproach,
     forceInputVisible = false,
     reduceMediaEffects = false,
@@ -105,6 +110,8 @@ export const CanvasNode = React.memo(function CanvasNode({
     renderNodeContent,
     drawingProjectId,
     batchCount = 0,
+    historyCount = 0,
+    historyPreviewNodes,
     batchPreviewNodes,
     batchExpanded = false,
     batchClosing = false,
@@ -158,6 +165,7 @@ export const CanvasNode = React.memo(function CanvasNode({
     const isDirectorNode = data.type === CanvasNodeType.Director || Boolean(data.metadata?.directorSceneId);
     const isBatchRoot = data.type === CanvasNodeType.Image && Boolean(data.metadata?.isBatchRoot) && batchCount > 1;
     const isBatchChild = data.type === CanvasNodeType.Image && Boolean(data.metadata?.batchRootId);
+    const hasVersionStack = historyCount > 0 && !data.metadata?.versionStackOwnerId;
     const failureView = canvasNodeFailureView(data);
     const showStatusTrack = Boolean(data.metadata?.locked || isBatchRoot || (isBatchChild && !readOnly));
     const isActive = isConnectionTarget || isSelected || isFocusRelated;
@@ -358,6 +366,7 @@ export const CanvasNode = React.memo(function CanvasNode({
         >
             {/* 标题与卡片共用反馈层；实际节点位置、侧边连接点仍留在稳定的根层。 */}
             <div ref={motionSurfaceRef} className="canvas-node-motion-surface relative h-full w-full overflow-visible" style={{ transformOrigin: "center center" }}>
+                {hasVersionStack ? <CanvasMediaVersionStack count={historyCount} previews={historyPreviewNodes} interactive={!connectionActive && !dragOffset} theme={theme} onOpen={() => onOpenVersions?.(data)} /> : null}
                 {!data.metadata?.reusableWorkflow ? <NodeExternalHeader
                     node={data}
                     scale={scale}
@@ -520,7 +529,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                         </div>
                     ) : null}
 
-                    {data.metadata?.versionLabel ? (
+                    {!hasVersionStack && data.metadata?.versionLabel ? (
                         <button
                             type="button"
                             // 版本徽标必须能在节点参数面板打开时继续点击；它是版本对比的稳定入口，
@@ -541,7 +550,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                         </button>
                     ) : null}
                     {showStatusTrack ? (
-                        <div className={`absolute right-3 top-3 z-[var(--node-z-overlay)] flex min-w-0 items-center justify-end gap-1 ${data.metadata?.versionLabel ? "max-w-[calc(100%-104px)]" : "max-w-[calc(100%-24px)]"}`}>
+                        <div className={`absolute right-3 top-3 z-[var(--node-z-overlay)] flex min-w-0 items-center justify-end gap-1 ${!hasVersionStack && data.metadata?.versionLabel ? "max-w-[calc(100%-104px)]" : "max-w-[calc(100%-24px)]"}`}>
                             {isBatchRoot ? <BatchToggleBadge count={batchCount} expanded={batchExpanded} theme={theme} onToggle={() => onToggleBatch?.(data.id)} /> : null}
                             {isBatchChild && !readOnly ? <BatchPrimaryBadge visible={batchPrimary || hovered || isSelected} selected={batchPrimary} theme={theme} onSelect={() => onSetBatchPrimary?.(data)} /> : null}
                             {data.metadata?.locked ? <NodeLockBadge theme={theme} /> : null}
@@ -600,6 +609,7 @@ function areCanvasNodePropsEqual(previous: CanvasNodeProps, next: CanvasNodeProp
         previous.isRelated === next.isRelated &&
         previous.isFocusRelated === next.isFocusRelated &&
         previous.isConnectionTarget === next.isConnectionTarget &&
+        previous.connectionActive === next.connectionActive &&
         previous.connectionApproach?.x === next.connectionApproach?.x &&
         previous.connectionApproach?.y === next.connectionApproach?.y &&
         previous.forceInputVisible === next.forceInputVisible &&
@@ -611,6 +621,8 @@ function areCanvasNodePropsEqual(previous: CanvasNodeProps, next: CanvasNodeProp
         (!usesCanvasCustomNodeContent(next.data) || previous.renderNodeContent === next.renderNodeContent) &&
         previous.drawingProjectId === next.drawingProjectId &&
         previous.batchCount === next.batchCount &&
+        previous.historyCount === next.historyCount &&
+        previous.historyPreviewNodes === next.historyPreviewNodes &&
         previous.batchPreviewNodes === next.batchPreviewNodes &&
         previous.batchExpanded === next.batchExpanded &&
         previous.batchClosing === next.batchClosing &&
@@ -825,10 +837,11 @@ function nodeTypeIcon(type: CanvasNodeTypeId) {
 // 节点状态徽章（对应 #97 决策2：左上角状态指示，loading/success/error）
 function NodeStatusBadge({ status, resultPending }: { status: "loading" | "success" | "error"; resultPending?: boolean }) {
     if (status === "loading") return null;
+    const positionClass = "left-2 top-2";
     if (status === "error") {
         return (
             <div
-                className="pointer-events-none absolute left-2 top-2 z-20 flex items-center gap-1 rounded-full px-2 py-0.5 backdrop-blur-sm"
+                className={`pointer-events-none absolute ${positionClass} z-20 flex items-center gap-1 rounded-full px-2 py-0.5 backdrop-blur-sm`}
                 style={{ background: "color-mix(in oklch, var(--status-error) 20%, transparent)", color: "var(--status-error)" }}
                 aria-label={resultPending ? "结果待放入画布" : "生成失败"}
             >
@@ -840,7 +853,7 @@ function NodeStatusBadge({ status, resultPending }: { status: "loading" | "succe
     // success：短暂闪现后淡出（由 CSS animation 控制，2s 后消失）
     return (
         <div
-            className="pointer-events-none absolute left-2 top-2 z-20 flex items-center gap-1 rounded-full px-2 py-0.5 backdrop-blur-sm"
+            className={`pointer-events-none absolute ${positionClass} z-20 flex items-center gap-1 rounded-full px-2 py-0.5 backdrop-blur-sm`}
             style={{ background: "color-mix(in oklch, var(--status-success) 20%, transparent)", color: "var(--status-success)", animation: "canvas-status-success-fade 2s ease-out forwards" }}
             aria-label="生成完成"
         >

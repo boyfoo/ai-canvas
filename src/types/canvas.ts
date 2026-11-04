@@ -456,6 +456,8 @@ export type CanvasNodeMetadata = {
     versionOfNodeId?: string;
     versionLabel?: string;
     versionPrimary?: boolean;
+    /** 折叠的媒体历史快照所属节点；快照独立持久化，当前节点 ID 与连线保持稳定。 */
+    versionStackOwnerId?: string;
     copiedFromNodeId?: string;
     generationResultPlacement?: "replace-node" | "new-version";
     directorSceneId?: string;

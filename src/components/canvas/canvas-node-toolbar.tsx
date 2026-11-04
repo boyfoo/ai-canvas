@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { App, Button, Dropdown, Input, Modal, Tag, Tooltip } from "antd";
 import type { MenuProps } from "antd";
-import { Camera, ChevronDown, ChevronRight, Images, Maximize2, Plus, Settings2, SlidersHorizontal, UserRound } from "lucide-react";
+import { Camera, ChevronDown, ChevronRight, History, Images, Maximize2, Plus, Settings2, SlidersHorizontal, UserRound } from "lucide-react";
 
 import { canvasDockStyle } from "@/lib/canvas/canvas-aceternity-style";
 import { ASSET_CATEGORY_OPTIONS } from "@/lib/asset-category";
@@ -22,6 +22,8 @@ import { CanvasGridSplitPicker } from "./canvas-grid-split-picker";
 
 type CanvasNodeToolbarProps = {
     node: CanvasNodeData | null;
+    hasHistory: boolean;
+    onOpenVersions: (node: CanvasNodeData) => void;
     viewport: ViewportTransform;
     containerRef: RefObject<HTMLDivElement | null>;
     onKeep: (nodeId: string) => void;
@@ -84,6 +86,8 @@ type ToolbarTool = {
 
 export function CanvasNodeToolbar({
     node,
+    hasHistory,
+    onOpenVersions,
     viewport,
     containerRef,
     onKeep,
@@ -358,6 +362,15 @@ export function CanvasNodeToolbar({
               { ...videoKeyframeTool, id: "keyframe-last", label: "截取尾帧", onClick: () => onExtractVideoFrames(node, "last") },
           ]
         : [];
+    // 图片、视频、音频共用原历史列表，沿用 Dock 按钮的文字、尺寸及点击区域。
+    const historyTool: ToolbarTool | null = hasHistory ? {
+        id: "media-history",
+        label: "查看历史",
+        icon: <History className="size-3.5" />,
+        group: "utility",
+        order: 5,
+        onClick: () => onOpenVersions(node),
+    } : null;
     const videoGlobalTools: ToolbarTool[] = isVideo
         ? [
               {
@@ -410,6 +423,7 @@ export function CanvasNodeToolbar({
                         {workspaceTools.map((tool) => (
                             <NodeDockToolButton key={tool.id} tool={tool} />
                         ))}
+                        {historyTool ? <NodeDockToolButton tool={historyTool} showTooltip={false} /> : null}
                         {videoGlobalTools.length ? <span aria-hidden className="aceternity-dock-separator mx-1 h-5 w-px shrink-0" /> : null}
                         {videoGlobalTools.map((tool) => (
                             <NodeDockToolButton key={tool.id} tool={tool} iconOnly />
@@ -440,6 +454,7 @@ export function CanvasNodeToolbar({
                             />
                         ) : null}
                         {imageSettingsTools.length ? <NodeDockMenuButton menuId="image-settings" label="图片设置" icon={<Settings2 className="size-3.5" />} tools={imageSettingsTools} openMenuId={openMenuId} onOpenChange={handleMenuOpenChange} /> : null}
+                        {historyTool ? <NodeDockToolButton tool={historyTool} showTooltip={false} /> : null}
                         {workspaceTools.length ? <span aria-hidden className="aceternity-dock-separator mx-1 h-5 w-px shrink-0" /> : null}
                         {workspaceTools.map((tool) => (
                             <NodeDockToolButton key={tool.id} tool={tool} />

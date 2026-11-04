@@ -332,7 +332,7 @@ export type NodeAlignmentContext = {
 export function createNodeAlignmentContext(nodes: CanvasNodeData[], initialPositions: Array<{ id: string; x: number; y: number }>): NodeAlignmentContext | null {
     const movingIds = new Set(initialPositions.map((item) => item.id));
     const initialById = new Map(initialPositions.map((item) => [item.id, item]));
-    const movingNodes = nodes.filter((node) => movingIds.has(node.id));
+    const movingNodes = nodes.filter((node) => movingIds.has(node.id) && !node.metadata?.versionStackOwnerId);
     if (!movingNodes.length) return null;
     const nodeById = new Map(nodes.map((node) => [node.id, node]));
     const left = Math.min(...movingNodes.map((node) => initialById.get(node.id)?.x ?? node.position.x));
@@ -340,7 +340,7 @@ export function createNodeAlignmentContext(nodes: CanvasNodeData[], initialPosit
     const right = Math.max(...movingNodes.map((node) => (initialById.get(node.id)?.x ?? node.position.x) + node.width));
     const bottom = Math.max(...movingNodes.map((node) => (initialById.get(node.id)?.y ?? node.position.y) + node.height));
     const targets = nodes.flatMap((node) => {
-        if (movingIds.has(node.id)) return [];
+        if (movingIds.has(node.id) || node.metadata?.versionStackOwnerId) return [];
         const batchRoot = node.metadata?.batchRootId ? nodeById.get(node.metadata.batchRootId) : null;
         if (batchRoot && !batchRoot.metadata?.imageBatchExpanded) return [];
         const parent = node.parentId ? nodeById.get(node.parentId) : null;
@@ -452,6 +452,8 @@ export function removeCanvasNodes(nodes: CanvasNodeData[], requestedIds: Set<str
         const previousSize = removedIds.size + ownedIds.size;
         for (const node of nodes) {
             if (removedIds.has(node.id)) node.metadata?.batchChildIds?.forEach(id => removedIds.add(id));
+            // 历史快照由前台节点拥有，删除整个叠卡时一并移除，避免留下不可见的孤立节点。
+            if (node.metadata?.versionStackOwnerId && removedIds.has(node.metadata.versionStackOwnerId)) removedIds.add(node.id);
             if (node.parentId && ownedIds.has(node.parentId)) { removedIds.add(node.id); ownedIds.add(node.id); }
         }
         expanded = previousSize !== removedIds.size + ownedIds.size;

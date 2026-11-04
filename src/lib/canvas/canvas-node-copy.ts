@@ -65,6 +65,7 @@ export function isolateCopiedNodeMetadata(node: CanvasNodeData, idMap: ReadonlyM
     delete metadata.versionOfNodeId;
     delete metadata.versionLabel;
     delete metadata.versionPrimary;
+    delete metadata.versionStackOwnerId;
     delete metadata.upscaleBatch;
     if (metadata.upscale) metadata.upscale = structuredClone(metadata.upscale);
     metadata.generatedFromProcessingNodeId = remapOwnedNodeId(node.metadata?.generatedFromProcessingNodeId, idMap);

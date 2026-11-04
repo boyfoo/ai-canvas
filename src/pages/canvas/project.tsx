@@ -966,6 +966,7 @@ function InfiniteCanvasPage() {
         selectedNodeBounds,
         selectedVideoNodes,
         toolbarNode,
+        toolbarHasHistory,
         visibleNodes,
     } = renderModel;
     lodActiveRef.current = lodActive;
@@ -1249,7 +1250,11 @@ function InfiniteCanvasPage() {
         },
         [cancelCanvasTask, message],
     );
-    const openCanvasNodeVersions = useCallback((node: CanvasNodeData) => setVersionCompareRootId(node.metadata?.versionOfNodeId || node.id), []);
+    const openCanvasNodeVersions = useCallback((node: CanvasNodeData) => {
+        const stackOwnerId = node.metadata?.versionStackOwnerId || node.id;
+        const hasStack = nodesRef.current.some((candidate) => candidate.metadata?.versionStackOwnerId === stackOwnerId);
+        setVersionCompareRootId(hasStack ? stackOwnerId : node.metadata?.versionOfNodeId || node.id);
+    }, [nodesRef]);
     const viewCanvasNodeImage = useCallback((node: CanvasNodeData) => setPreviewNodeId(node.id), []);
     // Overview nodes reuse the DOM card handlers; native events carry the
     // fields those handlers read (button, modifiers, client coordinates).
@@ -1771,6 +1776,8 @@ function InfiniteCanvasPage() {
 
                         <CanvasNodeToolbar
                             node={isCanvasNodeMoving || nodeImageSettingsOpen || annotationNodeId || maskEditNodeId || emotionNodeId || angleNodeId || (dialogNode && !isCanvasMediaResultNode(dialogNode)) || textEditorNodeId ? null : toolbarNode}
+                            hasHistory={toolbarHasHistory}
+                            onOpenVersions={openCanvasNodeVersions}
                             workspaceMode={workspaceMode}
                             viewport={viewport}
                             containerRef={containerRef}

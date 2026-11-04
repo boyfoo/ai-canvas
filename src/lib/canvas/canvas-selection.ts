@@ -52,7 +52,7 @@ export function createCanvasSelectionSpatialIndexCache(): CanvasSelectionSpatial
                 return root && !root.metadata?.imageBatchExpanded ? [node.id] : [];
             }));
             index = buildCanvasSpatialIndex(nodes
-                .filter((node) => !hiddenBatchChildIds.has(node.id) && !(node.parentId && nodeById.get(node.parentId)?.metadata?.frame?.collapsed))
+                .filter((node) => !node.metadata?.versionStackOwnerId && !hiddenBatchChildIds.has(node.id) && !(node.parentId && nodeById.get(node.parentId)?.metadata?.frame?.collapsed))
                 .map((node) => ({ id: node.id, bounds: canvasNodeBounds(node), value: node })));
             source = nodes;
             return index;

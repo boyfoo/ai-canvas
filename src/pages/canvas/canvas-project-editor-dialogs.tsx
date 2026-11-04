@@ -83,7 +83,7 @@ export type CanvasProjectEditorDialogsProps = {
     onAddDirectorImage: (image: Awaited<ReturnType<typeof uploadImage>>, title: string, signal: AbortSignal) => Promise<{ assetId?: string; persisted?: boolean } | void>;
     onFlush: () => void | Promise<void>;
     onClearCanvas: () => void;
-    onSetPrimaryVersion: (nodeId: string) => void;
+    onSetPrimaryVersion: (nodeId: string) => boolean;
     assets: {
         pickerOpen: boolean;
         multiple: boolean;

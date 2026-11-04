@@ -106,12 +106,12 @@ export function useCanvasViewportController({
 
     const fitCanvasContent = useCallback(() => {
         const nodes = nodesRef.current;
-        return focusNodesInView(nodes.filter((node) => !isHiddenBatchChild(node, nodes) && !isNodeHiddenByCollapsedFrame(node, nodes)));
+        return focusNodesInView(nodes.filter((node) => !node.metadata?.versionStackOwnerId && !isHiddenBatchChild(node, nodes) && !isNodeHiddenByCollapsedFrame(node, nodes)));
     }, [focusNodesInView, nodesRef]);
 
     const fitCanvasSelection = useCallback(() => {
         const nodes = nodesRef.current;
-        return focusNodesInView(nodes.filter((node) => selectedNodeIdsRef.current.has(node.id) && !isHiddenBatchChild(node, nodes) && !isNodeHiddenByCollapsedFrame(node, nodes)), 1.25);
+        return focusNodesInView(nodes.filter((node) => selectedNodeIdsRef.current.has(node.id) && !node.metadata?.versionStackOwnerId && !isHiddenBatchChild(node, nodes) && !isNodeHiddenByCollapsedFrame(node, nodes)), 1.25);
     }, [focusNodesInView, nodesRef, selectedNodeIdsRef]);
 
     const handleCanvasDoubleClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
