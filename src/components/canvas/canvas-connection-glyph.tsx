@@ -76,8 +76,8 @@ export function CanvasConnectionGlyph({ anchorRef, side, color, background }: {
                 transition: "color 120ms ease-out",
             }}
         >
-            {/* 固定 20px 视口与外圈同心，直接按屏幕尺寸绘制，不经过画布反向缩放。 */}
-            <svg className="absolute -left-px -top-px block" width="20" height="20" viewBox="0 0 20 20" fill="none">
+            {/* 按真实容器中心定位，不用固定偏移抵消边框；浏览器缩放会量化边框宽度。 */}
+            <svg className="absolute left-1/2 top-1/2 block -translate-x-1/2 -translate-y-1/2" width="20" height="20" viewBox="0 0 20 20" fill="none">
                 <path d="M6 10h8M10 6v8" stroke="currentColor" strokeWidth="1" />
             </svg>
         </span>,
