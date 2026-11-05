@@ -251,10 +251,11 @@ export const CanvasProjectWorldLayers = memo(function CanvasProjectWorldLayers(p
                         to={to}
                         fromScrollTop={props.scriptScrollTopById[from.id] || 0}
                         toScrollTop={props.scriptScrollTopById[to.id] || 0}
-                        active={props.selectedConnectionId === connection.id || props.relatedConnectionIds.has(connection.id)}
+                        selected={props.selectedConnectionId === connection.id}
+                        related={props.relatedConnectionIds.has(connection.id)}
                         visualMode="full"
-                        onSelect={() => props.onConnectionSelect(connection.id)}
-                        onContextMenu={(event) => props.onConnectionContextMenu(event, connection.id)}
+                        onSelect={props.onConnectionSelect}
+                        onContextMenu={props.onConnectionContextMenu}
                     />
                 ))}
             </svg> : null}

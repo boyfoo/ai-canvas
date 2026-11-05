@@ -72,7 +72,7 @@ export const cableStroke = {
     emphasisBlur: 2,
 } as const;
 
-/** 连线与接入特效统一青色；浅色画布加深同一色相，保证对比度。 */
+/** 连线强调态与接入特效统一青色；浅色画布加深同一色相，常态线由组件使用中性灰。 */
 export function connectionColor(light = false): string {
     return light ? "#388d93" : "#77d9de";
 }

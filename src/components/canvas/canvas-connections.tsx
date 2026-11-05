@@ -8,13 +8,14 @@ import { STORYBOARD_HEADER_HEIGHT, STORYBOARD_ROW_HEIGHT, storyboardTableHeight 
 import { batchReferenceHandleY } from "@/lib/canvas/canvas-batch-table";
 import type { CanvasConnection, CanvasNodeData, ConnectionHandle, Position } from "@/types/canvas";
 
-export const ConnectionPath = React.memo(function ConnectionPath({
+function ConnectionPathView({
     connection,
     from,
     to,
     fromScrollTop = 0,
     toScrollTop = 0,
-    active,
+    selected,
+    related = false,
     visualMode = "full",
     hideVisual = false,
     onSelect,
@@ -25,32 +26,41 @@ export const ConnectionPath = React.memo(function ConnectionPath({
     to: CanvasNodeData;
     fromScrollTop?: number;
     toScrollTop?: number;
-    active: boolean;
+    selected: boolean;
+    /** 单选节点的直接邻边，与直接选中连线分开表达。 */
+    related?: boolean;
     visualMode?: "full" | "hover-only";
     hideVisual?: boolean;
-    onSelect: () => void;
-    onContextMenu?: (event: ReactMouseEvent<SVGPathElement>) => void;
+    onSelect: (connectionId: string) => void;
+    onContextMenu?: (event: ReactMouseEvent<SVGPathElement>, connectionId: string) => void;
 }) {
     const themeName = useActiveTheme();
     const theme = canvasThemes[themeName];
     const [hovered, setHovered] = useState(false);
     const { pathD, startX, startY, endX, endY } = canvasConnectionPath(connection, from, to, fromScrollTop, toScrollTop);
-    const emphasized = active || hovered;
+    const emphasized = selected || related || hovered;
     // 只读稠密 LibTV 总览保留原有低对比虚线，不套用交互画布的彩色线缆。
     const denseReadonlyWire = connection.id.startsWith("libtv-dense-");
     const showVisual = shouldShowConnectionVisual({ visualMode, hovered, hideVisual });
-    const showEmphasis = showVisual && emphasized && !denseReadonlyWire;
-    const color = connectionColor(themeName === "light");
+    const light = themeName === "light";
+    // 常态退到背景，选中节点只适度突出邻边；直接选中连线才使用完整强调。
+    // 透明度落在各描边自身，平移/缩放仅保留主线时也不会突然变亮。
+    const state = selected ? "selected" : hovered ? "hovered" : related ? "related" : "idle";
+    const color = selected || related ? connectionColor(light) : theme.node.text;
+    const lineOpacity = selected ? 0.96 : hovered ? 0.56 : related ? 0.46 : light ? 0.2 : 0.16;
+    const haloOpacity = selected ? 0.18 : hovered ? 0.05 : 0;
+    const highlightOpacity = selected ? light ? 0.24 : 0.32 : related ? 0.08 : 0;
+    const showEmphasis = showVisual && (selected || hovered) && !denseReadonlyWire;
     const endpointsD = `M ${startX} ${startY} l 0 0 M ${endX} ${endY} l 0 0`;
 
     return (
-        <g data-canvas-connection-id={connection.id}>
-            {/* 常态仅用轻薄外晕；有成本的模糊只在悬停/选择时出现，不运行流光动画。 */}
+        <g data-canvas-connection-id={connection.id} data-connection-state={state}>
+            {/* 模糊仅用于悬停/直接选中；常态与关联线不绘制常驻光晕。 */}
             {showEmphasis ? <path
                 d={pathD}
                 stroke={color}
                 strokeWidth={cableStroke.emphasisHalo}
-                strokeOpacity={themeName === "dark" ? 0.28 : 0.18}
+                strokeOpacity={selected ? light ? 0.18 : 0.24 : 0.07}
                 vectorEffect="non-scaling-stroke"
                 fill="none"
                 strokeLinecap="round"
@@ -59,7 +69,7 @@ export const ConnectionPath = React.memo(function ConnectionPath({
             {/* 命中仍为独立的屏幕 16px 透明描边，视觉厚度不改变选择和右键操作。 */}
             <path
                 data-connection-id={connection.id}
-                data-connection-active={active ? "true" : "false"}
+                data-connection-active={selected ? "true" : "false"}
                 d={pathD}
                 stroke="transparent"
                 strokeWidth="16"
@@ -70,19 +80,19 @@ export const ConnectionPath = React.memo(function ConnectionPath({
                 onMouseLeave={() => setHovered(false)}
                 onClick={(event) => {
                     event.stopPropagation();
-                    onSelect();
+                    onSelect(connection.id);
                 }}
                 onContextMenu={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
-                    onContextMenu?.(event);
+                    onContextMenu?.(event, connection.id);
                 }}
             />
             {showVisual && !denseReadonlyWire ? <path
                 d={pathD}
                 stroke={color}
                 strokeWidth={cableStroke.halo}
-                strokeOpacity={emphasized ? 0.18 : 0.09}
+                strokeOpacity={haloOpacity}
                 vectorEffect="non-scaling-stroke"
                 fill="none"
                 strokeLinecap="round"
@@ -94,7 +104,7 @@ export const ConnectionPath = React.memo(function ConnectionPath({
                 stroke={denseReadonlyWire ? theme.node.muted : theme.canvas.background}
                 strokeWidth={denseReadonlyWire ? 0.75 : cableStroke.backing}
                 vectorEffect="non-scaling-stroke"
-                strokeOpacity={denseReadonlyWire ? 0.12 : 0.8}
+                strokeOpacity={denseReadonlyWire ? 0.12 : selected ? 0.8 : emphasized ? 0.5 : 0.3}
                 fill="none"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -108,7 +118,7 @@ export const ConnectionPath = React.memo(function ConnectionPath({
                 stroke={denseReadonlyWire ? emphasized ? theme.accent.primary : theme.node.muted : color}
                 strokeWidth={denseReadonlyWire ? 0.75 : cableStroke.width}
                 vectorEffect="non-scaling-stroke"
-                strokeOpacity={denseReadonlyWire ? 0.16 : 0.96}
+                strokeOpacity={denseReadonlyWire ? 0.16 : lineOpacity}
                 fill="none"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -120,7 +130,7 @@ export const ConnectionPath = React.memo(function ConnectionPath({
                     d={pathD}
                     stroke="white"
                     strokeWidth={cableStroke.highlight}
-                    strokeOpacity={emphasized ? 0.42 : themeName === "dark" ? 0.28 : 0.18}
+                    strokeOpacity={highlightOpacity}
                     vectorEffect="non-scaling-stroke"
                     fill="none"
                     strokeLinecap="round"
@@ -129,8 +139,8 @@ export const ConnectionPath = React.memo(function ConnectionPath({
                 />
                 {/* 零长圆头描边形成端点圆点：继承逆倍率抵消外层 CSS 缩放，vectorEffect 保留 SVG 内部缩放保护。
                     拖动预览按此属性更新端点，不能把短 path 替换成整条连线路径。 */}
-                <path data-canvas-cable-endpoints d={endpointsD} stroke={color} strokeWidth={cableStroke.endpoint} vectorEffect="non-scaling-stroke" fill="none" strokeLinecap="round" style={{ pointerEvents: "none", strokeWidth: `calc(${cableStroke.endpoint}px * var(--canvas-wire-inverse-scale, 1))` }} />
-                <path data-canvas-cable-endpoints d={endpointsD} stroke="white" strokeWidth={cableStroke.endpointHighlight} strokeOpacity={0.84} vectorEffect="non-scaling-stroke" fill="none" strokeLinecap="round" style={{ pointerEvents: "none", strokeWidth: `calc(${cableStroke.endpointHighlight}px * var(--canvas-wire-inverse-scale, 1))` }} />
+                <path data-canvas-cable-endpoints d={endpointsD} stroke={color} strokeWidth={cableStroke.endpoint} strokeOpacity={lineOpacity} vectorEffect="non-scaling-stroke" fill="none" strokeLinecap="round" style={{ pointerEvents: "none", strokeWidth: `calc(${cableStroke.endpoint}px * var(--canvas-wire-inverse-scale, 1))` }} />
+                <path data-canvas-cable-endpoints d={endpointsD} stroke="white" strokeWidth={cableStroke.endpointHighlight} strokeOpacity={selected ? 0.6 : related ? 0.18 : 0} vectorEffect="non-scaling-stroke" fill="none" strokeLinecap="round" style={{ pointerEvents: "none", strokeWidth: `calc(${cableStroke.endpointHighlight}px * var(--canvas-wire-inverse-scale, 1))` }} />
             </> : null}
             {showVisual && denseReadonlyWire ? <>
                 <circle cx={startX} cy={startY} r={0.35} fill={emphasized ? theme.accent.primary : theme.node.muted} fillOpacity={0.12} vectorEffect="non-scaling-stroke" style={{ pointerEvents: "none" }} />
@@ -138,7 +148,11 @@ export const ConnectionPath = React.memo(function ConnectionPath({
             </> : null}
         </g>
     );
-}, (previous, next) => previous.connection === next.connection && previous.from === next.from && previous.to === next.to && previous.active === next.active && previous.visualMode === next.visualMode && previous.hideVisual === next.hideVisual && previous.fromScrollTop === next.fromScrollTop && previous.toScrollTop === next.toScrollTop);
+}
+
+// 由调用方传入稳定事件函数，标准浅比较即可覆盖全部视觉状态与处理器。
+// 不再手动挑选 props，避免扩展状态或替换事件后继续复用旧的连线显示/回调。
+export const ConnectionPath = React.memo(ConnectionPathView);
 
 export function canvasConnectionPath(connection: CanvasConnection, from: CanvasNodeData, to: CanvasNodeData, fromScrollTop = 0, toScrollTop = 0) {
     if (connection.pathD) return { pathD: connection.pathD, startX: from.position.x + from.width, startY: from.position.y + from.height / 2, endX: to.position.x, endY: to.position.y + to.height / 2 };

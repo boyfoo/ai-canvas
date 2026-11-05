@@ -140,7 +140,7 @@ export function CanvasVersionPreview({ preview, busy = false, onReturn, onShowVe
                             >
                                 <svg className="pointer-events-none absolute overflow-visible" width={1} height={1}>
                                     {connections.map(({ connection, from, to }) => (
-                                        <ConnectionPath key={connection.id} connection={{ ...connection, id: previewNodeId(connection.id) }} from={from} to={to} active={false} onSelect={noAction} />
+                                        <ConnectionPath key={connection.id} connection={{ ...connection, id: previewNodeId(connection.id) }} from={from} to={to} selected={false} onSelect={noAction} />
                                     ))}
                                 </svg>
                                 {visibleNodes.map((node) =>

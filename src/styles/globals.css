@@ -11648,6 +11648,13 @@ html:not(.dark) .creation-studio-control:hover,
         backdrop-filter: none !important;
     }
 
+    /* 仅过渡连线颜色与明暗，不过渡几何，避免拖动/缩放时描边追赶端点。 */
+    g[data-canvas-connection-id] > path:not([data-connection-id]) {
+        transition-property: stroke, stroke-opacity;
+        transition-duration: calc(160ms * var(--motion-scale));
+        transition-timing-function: ease-out;
+    }
+
     /* 平移、缩放期间每条连线只画一条单色主线：底衬描边、光晕、端点、流光都先不画。
        透明的点击路径不产生绘制，保留不动。 */
     [data-canvas-viewport-interacting="true"] g[data-canvas-connection-id] > :not(.canvas-connection-line, [data-connection-id], defs) {
