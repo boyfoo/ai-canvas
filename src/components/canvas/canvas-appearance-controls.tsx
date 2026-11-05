@@ -13,6 +13,7 @@ import {
 } from "@/lib/canvas/canvas-appearance";
 import type { CanvasBackgroundMode, CanvasColorTheme, CanvasTheme } from "@/lib/canvas-theme";
 import type { CanvasWheelBehavior } from "@/lib/canvas/canvas-wheel";
+import { canvasPortEffectOptions, type CanvasPortEffectStyle } from "@/lib/canvas/canvas-connection-port-effect";
 
 const DARK_PRESETS = ["#000000", "#30272B", "#302D26", "#25302E"];
 
@@ -32,6 +33,8 @@ export function CanvasAppearanceControls({
     onShowConnectionsChange,
     wheelBehavior,
     onWheelBehaviorChange,
+    connectionPortEffect,
+    onConnectionPortEffectChange,
 }: {
     appearance: CanvasAppearance;
     backgroundMode: CanvasBackgroundMode;
@@ -46,6 +49,8 @@ export function CanvasAppearanceControls({
     onShowConnectionsChange: (visible: boolean) => void;
     wheelBehavior: CanvasWheelBehavior;
     onWheelBehaviorChange: (behavior: CanvasWheelBehavior) => void;
+    connectionPortEffect: CanvasPortEffectStyle;
+    onConnectionPortEffectChange: (effect: CanvasPortEffectStyle) => void;
 }) {
     const [draft, setDraft] = useState(appearance);
 
@@ -85,10 +90,10 @@ export function CanvasAppearanceControls({
         <>
             <div className="mt-3 text-[var(--fs-micro)] font-semibold uppercase opacity-45">主题模式</div>
             <div className="mt-1 grid grid-cols-2 gap-1 rounded-[var(--dock-item-radius-labeled)] border p-1" style={{ background: theme.spatial.surface, borderColor: theme.toolbar.border }}>
-                <ThemeButton active={draft.mode === "follow"} label="跟随全局" theme={theme} onClick={() => { const next: CanvasAppearance = { ...draft, mode: "follow" }; setDraft(next); onAppearanceChange(next); }}><Link2 className="size-3.5" /></ThemeButton>
-                <ThemeButton active={draft.mode === "light"} label="浅色" theme={theme} onClick={() => selectFixedTheme("light")}><Sun className="size-3.5" /></ThemeButton>
-                <ThemeButton active={draft.mode === "dark"} label="深色" theme={theme} onClick={() => selectFixedTheme("dark")}><Moon className="size-3.5" /></ThemeButton>
-                <ThemeButton active={draft.mode === "custom"} label="自定义" theme={theme} onClick={selectCustomTheme}><Paintbrush className="size-3.5" /></ThemeButton>
+                <AppearanceOptionButton active={draft.mode === "follow"} label="跟随全局" ariaLabel="切换到跟随全局主题" theme={theme} onClick={() => { const next: CanvasAppearance = { ...draft, mode: "follow" }; setDraft(next); onAppearanceChange(next); }}><Link2 className="size-3.5" /></AppearanceOptionButton>
+                <AppearanceOptionButton active={draft.mode === "light"} label="浅色" ariaLabel="切换到浅色主题" theme={theme} onClick={() => selectFixedTheme("light")}><Sun className="size-3.5" /></AppearanceOptionButton>
+                <AppearanceOptionButton active={draft.mode === "dark"} label="深色" ariaLabel="切换到深色主题" theme={theme} onClick={() => selectFixedTheme("dark")}><Moon className="size-3.5" /></AppearanceOptionButton>
+                <AppearanceOptionButton active={draft.mode === "custom"} label="自定义" ariaLabel="切换到自定义主题" theme={theme} onClick={selectCustomTheme}><Paintbrush className="size-3.5" /></AppearanceOptionButton>
             </div>
 
             {draft.mode === "custom" && draft.custom ? (
@@ -131,6 +136,14 @@ export function CanvasAppearanceControls({
                 <Switch size="sm" checked={showConnections} onChange={onShowConnectionsChange} aria-label="显示连线" />
             </div>
 
+            <div className="mt-3 text-[var(--fs-micro)] font-semibold uppercase opacity-45">接点动效</div>
+            <div role="group" aria-label="接点动效" className="mt-1 grid grid-cols-2 gap-1 rounded-[var(--dock-item-radius-labeled)] border p-1" style={{ background: theme.spatial.surface, borderColor: theme.toolbar.border }}>
+                {canvasPortEffectOptions.map(option => (
+                    <AppearanceOptionButton key={option.value} active={connectionPortEffect === option.value} label={option.label} ariaLabel={`使用${option.label}接点动效`} theme={theme} onClick={() => onConnectionPortEffectChange(option.value)} />
+                ))}
+            </div>
+            <div className="mt-1 text-[var(--fs-micro)] opacity-60">{canvasPortEffectOptions.find(option => option.value === connectionPortEffect)?.description}</div>
+
             <div className="mt-3 text-[var(--fs-micro)] font-semibold uppercase opacity-45">滚轮操作</div>
             <Segmented
                 className={SEGMENTED_ROW_CLASS}
@@ -146,9 +159,9 @@ export function CanvasAppearanceControls({
     );
 }
 
-function ThemeButton({ active, label, theme, onClick, children }: { active: boolean; label: string; theme: CanvasTheme; onClick: () => void; children: ReactNode }) {
+function AppearanceOptionButton({ active, label, ariaLabel, theme, onClick, children }: { active: boolean; label: string; ariaLabel: string; theme: CanvasTheme; onClick: () => void; children?: ReactNode }) {
     return (
-        <button type="button" className="inline-flex h-8 min-w-0 items-center justify-center gap-1 rounded-[var(--dock-item-radius)] px-1 text-[var(--fs-tiny)] font-semibold transition-colors" style={active ? { background: theme.node.text, color: theme.node.panel } : { color: theme.toolbar.item }} aria-label={`切换到${label}主题`} aria-pressed={active} title={`切换到${label}主题`} onClick={onClick}>
+        <button type="button" className="inline-flex h-8 min-w-0 items-center justify-center gap-1 rounded-[var(--dock-item-radius)] px-1 text-[var(--fs-tiny)] font-semibold transition-colors" style={active ? { background: theme.node.text, color: theme.node.panel } : { color: theme.toolbar.item }} aria-label={ariaLabel} aria-pressed={active} title={ariaLabel} onClick={onClick}>
             {children}<span className="truncate">{label}</span>
         </button>
     );

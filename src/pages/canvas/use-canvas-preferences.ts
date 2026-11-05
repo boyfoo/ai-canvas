@@ -4,6 +4,7 @@ import { useFocusMode } from "@/hooks/use-focus-mode";
 import { scopedLocalStorage } from "@/lib/user-scope";
 import { DEFAULT_CANVAS_BACKGROUND_MODE, normalizeCanvasAppearance, resolveCanvasAppearance, writeCanvasAppearanceDefault, type CanvasAppearance } from "@/lib/canvas/canvas-appearance";
 import { parseCanvasWheelBehavior, type CanvasWheelBehavior } from "@/lib/canvas/canvas-wheel";
+import { canvasPortEffectOptions, type CanvasPortEffectStyle } from "@/lib/canvas/canvas-connection-port-effect";
 import { persistCanvasMediaPerformanceMode, readCanvasMediaPerformanceMode } from "@/lib/canvas/canvas-performance-mode";
 import { canvasThemes, type CanvasBackgroundMode } from "@/lib/canvas-theme";
 import { useCanvasThemeStore } from "@/stores/canvas/use-canvas-theme-store";
@@ -22,6 +23,10 @@ export function useCanvasPreferences() {
     const [snapToGrid, setSnapToGrid] = useState(() => scopedLocalStorage.getItem("canvas:snap-to-grid") === "1");
     const [showConnections, setShowConnections] = useState(() => scopedLocalStorage.getItem("canvas:show-connections") !== "0");
     const [wheelBehavior, setWheelBehavior] = useState<CanvasWheelBehavior>(() => parseCanvasWheelBehavior(scopedLocalStorage.getItem("canvas:wheel-behavior")));
+    const [connectionPortEffect, setConnectionPortEffect] = useState<CanvasPortEffectStyle>(() => {
+        const value = scopedLocalStorage.getItem("canvas:connection-port-effect");
+        return canvasPortEffectOptions.find(option => option.value === value)?.value ?? "wave";
+    });
     const [canvasTool, setCanvasTool] = useState<CanvasToolMode>("box-select");
     const [mediaPerformanceMode, setMediaPerformanceMode] = useState<CanvasMediaPerformanceMode>(readCanvasMediaPerformanceMode);
     const { focusMode, enterFocusMode, exitFocusMode, toggleFocusMode } = useFocusMode();
@@ -55,6 +60,11 @@ export function useCanvasPreferences() {
         setWheelBehavior(behavior);
         scopedLocalStorage.setItem("canvas:wheel-behavior", behavior);
     }, []);
+    // 接点动效属于当前账号在本机的显示偏好，不进入画布内容或撤销历史。
+    const changeConnectionPortEffect = useCallback((effect: CanvasPortEffectStyle) => {
+        setConnectionPortEffect(effect);
+        scopedLocalStorage.setItem("canvas:connection-port-effect", effect);
+    }, []);
     const toggleConnections = useCallback(() => setShowConnections(value => {
         scopedLocalStorage.setItem("canvas:show-connections", value ? "0" : "1");
         return !value;
@@ -64,10 +74,10 @@ export function useCanvasPreferences() {
         return !value;
     }), []);
     return {
-        isMiniMapOpen, snapToGrid, showConnections, wheelBehavior, canvasTool, setCanvasTool,
+        isMiniMapOpen, snapToGrid, showConnections, wheelBehavior, connectionPortEffect, canvasTool, setCanvasTool,
         canvasAppearance, setCanvasAppearance, backgroundMode, setBackgroundMode, showImageInfo, setShowImageInfo,
         mediaPerformanceMode, setMediaPerformanceMode, colorTheme, theme, resolvedCanvasAppearance,
-        applyCanvasAppearance, saveCanvasAppearanceDefault, changeSnapToGrid, changeConnections, changeWheelBehavior,
+        applyCanvasAppearance, saveCanvasAppearanceDefault, changeSnapToGrid, changeConnections, changeWheelBehavior, changeConnectionPortEffect,
         toggleConnections, toggleMiniMap, setShowConnections, focusMode, enterFocusMode, exitFocusMode, toggleFocusMode,
         focusDockRevealed, setFocusDockRevealed,
     };

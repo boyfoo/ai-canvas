@@ -192,6 +192,7 @@ function InfiniteCanvasPage() {
         snapToGrid,
         showConnections,
         wheelBehavior,
+        connectionPortEffect,
         canvasTool,
         setCanvasTool,
         canvasAppearance,
@@ -209,6 +210,7 @@ function InfiniteCanvasPage() {
         changeSnapToGrid,
         changeConnections,
         changeWheelBehavior,
+        changeConnectionPortEffect,
         toggleConnections,
         toggleMiniMap,
         setShowConnections,
@@ -1476,6 +1478,7 @@ function InfiniteCanvasPage() {
                                             containerRef={containerRef}
                                             viewport={viewport}
                                             theme={theme}
+                                            connectionPortEffect={connectionPortEffect}
                                             scriptScrollTopById={scriptScrollTopById}
                                             connectingParams={connectingParams}
                                             connections={connections}
@@ -1648,6 +1651,8 @@ function InfiniteCanvasPage() {
                                         onShowConnectionsChange={changeConnections}
                                         wheelBehavior={wheelBehavior}
                                         onWheelBehaviorChange={changeWheelBehavior}
+                                        connectionPortEffect={connectionPortEffect}
+                                        onConnectionPortEffectChange={changeConnectionPortEffect}
                                         onShowImageInfoChange={setShowImageInfo}
                                         onOpenMyAssets={() => openCanvasAssetLibrary()}
                                         onOpenProjectCharacters={() => openProjectAssets("character")}

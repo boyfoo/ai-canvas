@@ -6,6 +6,7 @@ import { connectionHandleY } from "@/components/canvas/canvas-connections";
 import { prepareCanvasConnectionImpact } from "@/components/canvas/use-canvas-connection-feedback";
 import { connectionColor } from "@/lib/canvas/canvas-connection-cable";
 import { CanvasConnectionCableScene, type CanvasCableDraft } from "@/lib/canvas/canvas-connection-cable-scene";
+import type { CanvasPortEffectStyle } from "@/lib/canvas/canvas-connection-port-effect";
 import type { CanvasBatchConnectionPreview } from "@/lib/canvas/canvas-batch-connection";
 import { subscribeCanvasGraphicsViewportPreview, subscribeCanvasNodeDragPreview, subscribeCanvasSelectionPreview, type CanvasNodeDragPreview } from "@/lib/canvas/canvas-live-viewport";
 import { calculateCanvasPreviewTransform, sameCanvasViewport, shouldRebaseCanvasRaster } from "@/lib/canvas/canvas-leafer-viewport";
@@ -19,6 +20,7 @@ type CanvasLeaferGraphicsLayerProps = {
     containerRef: RefObject<HTMLDivElement | null>;
     viewport: ViewportTransform;
     theme: CanvasTheme;
+    connectionPortEffect: CanvasPortEffectStyle;
     scriptScrollTopById: Record<string, number>;
     connectingParams: ConnectionHandle | null;
     batchConnectionPreview: CanvasBatchConnectionPreview | null;
@@ -86,7 +88,7 @@ export function CanvasLeaferGraphicsLayer(props: CanvasLeaferGraphicsLayerProps)
             // would flush the world-layer style writes on every preview frame.
             const size = viewportSizeRef.current;
             if (isViewportPreview(container, next, rasterViewportRef.current)) {
-                // 加号在未缩放层绘制；接入圈也必须逐帧按实时倍率绘制，不能先放大旧栅格。
+                // 特效存在时同步真实镜头：节点比例圆圈自然缩放，固定屏幕线宽仍准确补偿。
                 // 仅临时接线／冲击波期间同步这个小覆盖层，普通浏览继续复用合成预览。
                 if (overlay.cables.hasContent || shouldRebaseCanvasRaster(next, rasterViewportRef.current)) {
                     syncViewport(next, size.width, size.height, overlay, propsRef.current);
@@ -158,7 +160,7 @@ export function CanvasLeaferGraphicsLayer(props: CanvasLeaferGraphicsLayerProps)
         }
         connectionIdsRef.current = new Set(props.connections.map((connection) => connection.id));
         previousInteractionRef.current = { single: props.connectingParams, batch: props.batchConnectionPreview };
-    }, [props.batchConnectionPreview, props.connectingParams, props.connectionTargetAnchorRatio, props.connectionTargetHandleId, props.connectionTargetNodeId, props.connections, props.mouseWorld, props.nodeById, props.scriptScrollTopById, props.selectedNodeBounds, props.selectionBox, props.theme, reducedMotion]);
+    }, [props.batchConnectionPreview, props.connectingParams, props.connectionPortEffect, props.connectionTargetAnchorRatio, props.connectionTargetHandleId, props.connectionTargetNodeId, props.connections, props.mouseWorld, props.nodeById, props.scriptScrollTopById, props.selectedNodeBounds, props.selectionBox, props.theme, reducedMotion]);
 
     useLayoutEffect(() => {
         const overlay = overlayRef.current;
@@ -235,7 +237,7 @@ function syncOverlayContent(scene: OverlayScene, props: CanvasLeaferGraphicsLaye
                 start: forward ? fixed : props.mouseWorld,
                 end: forward ? props.mouseWorld : fixed,
                 freeEnd: forward ? "end" : "start",
-                target: target ? { x: target.position.x + (forward ? 0 : target.width), y: connectionHandleY(target, props.connectionTargetHandleId, props.scriptScrollTopById[target.id] || 0) } : undefined,
+                target: target ? { x: target.position.x + (forward ? 0 : target.width), y: connectionHandleY(target, props.connectionTargetHandleId, props.scriptScrollTopById[target.id] || 0), nodeWidth: target.width } : undefined,
                 color: connectionColor(props.theme.canvas.background === "#f0f0f0"),
                 ink: props.theme.node.activeStroke,
             });
@@ -252,13 +254,13 @@ function syncOverlayContent(scene: OverlayScene, props: CanvasLeaferGraphicsLaye
                 start: { x: source.position.x + source.width, y: connectionHandleY(source, undefined, props.scriptScrollTopById[source.id] || 0) },
                 end: batch.mouseWorld,
                 freeEnd: "end",
-                target: target ? { x: target.position.x, y: connectionHandleY(target, batch.targetHandleId, props.scriptScrollTopById[target.id] || 0) } : undefined,
+                target: target ? { x: target.position.x, y: connectionHandleY(target, batch.targetHandleId, props.scriptScrollTopById[target.id] || 0), nodeWidth: target.width } : undefined,
                 color: connectionColor(props.theme.canvas.background === "#f0f0f0"),
                 ink: batch.status === "invalid" ? props.theme.accent.danger : props.theme.node.activeStroke,
             });
         }
     }
-    scene.cables.sync(drafts, viewportScale, reducedMotion || Boolean(scene.host.closest(".no-motion")));
+    scene.cables.sync(drafts, viewportScale, reducedMotion || Boolean(scene.host.closest(".no-motion")), props.connectionPortEffect);
 }
 
 function syncSelection(rect: Rect, selection: SelectionBox, theme: CanvasTheme) {

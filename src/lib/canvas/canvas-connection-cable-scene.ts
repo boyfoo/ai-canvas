@@ -1,6 +1,7 @@
 import { Ellipse, Group, Path } from "leafer-ui";
 
-import { advanceCableMotion, cableImpactContour, cableImpactOffset, cablePath, cableStroke, connectionHandleDiameter, createCableMotion, type CableImpactBounds, type CableMotion, type CablePoint } from "./canvas-connection-cable";
+import { advanceCableMotion, cableImpactContour, cableImpactOffset, cablePath, cableStroke, createCableMotion, type CableImpactBounds, type CableMotion, type CablePoint } from "./canvas-connection-cable";
+import { CanvasConnectionPortEffect, type CanvasPortEffectStyle } from "./canvas-connection-port-effect";
 import type { CanvasConnectionImpactFeedback } from "./canvas-live-viewport";
 
 /** 只接收绘制坐标与合法目标；是否允许连接仍由原连接控制器决定。 */
@@ -9,7 +10,7 @@ export type CanvasCableDraft = {
     start: CablePoint;
     end: CablePoint;
     freeEnd: "start" | "end";
-    target?: CablePoint;
+    target?: CablePoint & { nodeWidth: number };
     color: string;
     ink: string;
 };
@@ -21,24 +22,16 @@ type CableTrack = {
     body: Path;
     highlight: Path;
     plugs: Path;
-    portGlow: Ellipse;
-    portRing: Ellipse;
-    portInnerRing: Ellipse;
-    portDot: Ellipse;
+    portEffect: CanvasConnectionPortEffect;
+    portStartedAt: number | null;
+    portTargetKey: string | null;
     arcs: Path[];
     arcCores: Path[];
     motion: CableMotion;
 };
 
 type ImpactBranch = { glow: Path; tail: Path; head: Path; light: Ellipse; wake: Ellipse };
-type CableFlash = { point: CablePoint; bounds: CableImpactBounds; side: "left" | "right"; feedback: CanvasConnectionImpactFeedback | null; color: string; startedAt: number | null; group: Group; glow: Ellipse; ripples: Path[]; dot: Ellipse; branches: ImpactBranch[] };
-
-// 接入口反馈圈单独使用固定屏幕尺寸，避免跟随均衡档的细线和小端点一起缩小。
-const portRingRadius = connectionHandleDiameter / 2;
-const portRingStrokeWidth = 1.6;
-const portDotDiameter = connectionHandleDiameter * 0.3;
-const portGlowDiameter = connectionHandleDiameter * 1.8;
-const portGlowStrength = 0.19;
+type CableFlash = { point: CablePoint; bounds: CableImpactBounds; side: "left" | "right"; feedback: CanvasConnectionImpactFeedback | null; color: string; startedAt: number | null; group: Group; portEffect: CanvasConnectionPortEffect; branches: ImpactBranch[] };
 
 /**
  * 临时线缆的 Leafer 绘制器。复用现有 world 和 DPR，不创建第二个画布。
@@ -50,19 +43,21 @@ export class CanvasConnectionCableScene {
     private frame: number | null = null;
     private scale = 1;
     private reducedMotion = false;
+    private effectStyle: CanvasPortEffectStyle = "wave";
     private destroyed = false;
     private flashes: CableFlash[] = [];
 
     constructor(private readonly parent: Group, private readonly host: HTMLDivElement, private readonly render: () => void) {}
 
-    /** 有固定屏幕尺寸的临时线缆／光圈时，镜头预览需同步绘制，避免旧栅格被成倍缩放。 */
+    /** 有临时线缆／光圈时同步镜头预览，确保图形与节点使用同一倍率。 */
     get hasContent() {
         return this.tracks.size > 0 || this.flashes.length > 0;
     }
 
-    sync(inputs: CanvasCableDraft[], scale: number, reducedMotion: boolean) {
+    sync(inputs: CanvasCableDraft[], scale: number, reducedMotion: boolean, effectStyle: CanvasPortEffectStyle) {
         this.scale = Math.max(scale, 0.05);
         this.reducedMotion = reducedMotion;
+        this.effectStyle = effectStyle;
         if (inputs.some((input) => !this.tracks.has(input.id))) this.cancelImpacts();
         const ids = new Set(inputs.map((input) => input.id));
         for (const [id, track] of this.tracks) {
@@ -74,7 +69,6 @@ export class CanvasConnectionCableScene {
         for (const input of inputs) {
             const track = this.tracks.get(input.id);
             if (track) {
-                if (track.input.color !== input.color) track.portGlow.fill = lightFill(input.color, portGlowStrength);
                 track.input = input;
             }
             else this.tracks.set(input.id, this.createTrack(input, now));
@@ -102,12 +96,7 @@ export class CanvasConnectionCableScene {
         });
         const group = new Group({ hittable: false });
         this.parent.add(group);
-        const glow = new Ellipse({ hittable: false, fill: lightFill(color, portGlowStrength) });
-        const ripples = Array.from({ length: 2 }, () => new Path({ hittable: false, fill: "transparent", stroke: color }));
-        const dot = new Ellipse({ hittable: false, fill: color });
-        group.add(glow);
-        ripples.forEach((ripple) => group.add(ripple));
-        group.add(dot);
+        const portEffect = new CanvasConnectionPortEffect(group);
         const branches = Array.from({ length: 2 }, () => {
             const options = { hittable: false, visible: false, strokeCap: "round" as const, strokeJoin: "round" as const };
             const branch = {
@@ -123,7 +112,7 @@ export class CanvasConnectionCableScene {
             return branch;
         });
         const side = Math.abs(point.x - bounds.x) <= Math.abs(point.x - bounds.x - bounds.width) ? "left" : "right";
-        this.flashes.push({ point, bounds, side, feedback, color, startedAt: null, group, glow, ripples, dot, branches });
+        this.flashes.push({ point, bounds, side, feedback, color, startedAt: null, group, portEffect, branches });
         this.draw(performance.now());
     }
 
@@ -155,24 +144,17 @@ export class CanvasConnectionCableScene {
         const body = new Path({ hittable: false, strokeCap: "round" });
         const highlight = new Path({ hittable: false, strokeCap: "round" });
         const plugs = new Path({ hittable: false, strokeCap: "round" });
-        const portGlow = new Ellipse({ hittable: false, visible: false, fill: lightFill(input.color, portGlowStrength) });
-        const portRing = new Ellipse({ hittable: false, visible: false, fill: "transparent", strokeAlign: "inside" });
-        const portInnerRing = new Ellipse({ hittable: false, visible: false, fill: "transparent" });
-        const portDot = new Ellipse({ hittable: false, visible: false, fill: input.color });
         const arcs = Array.from({ length: 2 }, () => new Path({ hittable: false, visible: false, strokeCap: "round", strokeJoin: "round" }));
         const arcCores = Array.from({ length: 2 }, () => new Path({ hittable: false, visible: false, strokeCap: "round", strokeJoin: "round" }));
-        group.add(portGlow);
         group.add(halo);
         group.add(body);
         group.add(highlight);
         arcs.forEach((arc) => group.add(arc));
         arcCores.forEach((arc) => group.add(arc));
         group.add(plugs);
-        group.add(portRing);
-        group.add(portInnerRing);
-        group.add(portDot);
+        const portEffect = new CanvasConnectionPortEffect(group);
         this.parent.add(group);
-        return { input, group, halo, body, highlight, plugs, portGlow, portRing, portInnerRing, portDot, arcs, arcCores, motion: createCableMotion(input.start, input.end, this.scale, now) };
+        return { input, group, halo, body, highlight, plugs, portEffect, portStartedAt: null, portTargetKey: null, arcs, arcCores, motion: createCableMotion(input.start, input.end, this.scale, now) };
     }
 
     private draw = (now: number, animationFrame = false) => {
@@ -206,25 +188,21 @@ export class CanvasConnectionCableScene {
             track.body.set({ path: frame.pathD, stroke, strokeWidth: cableStroke.width / scale, opacity: 0.92 });
             track.highlight.set({ path: frame.pathD, stroke: "#ffffff", strokeWidth: cableStroke.highlight / scale, opacity: 0.38 });
             track.plugs.set({ path: `M ${start.x} ${start.y} l 0 0 M ${end.x} ${end.y} l 0 0`, stroke, strokeWidth: cableStroke.endpoint / scale });
-            track.portGlow.visible = nearPort;
-            track.portRing.visible = nearPort;
-            track.portInnerRing.visible = nearPort;
-            track.portDot.visible = nearPort;
             track.arcs.forEach((arc) => { arc.visible = nearPort && !reducedMotion; });
             track.arcCores.forEach((arc) => { arc.visible = nearPort && !reducedMotion; });
-            if (!nearPort || !input.target) continue;
+            if (!nearPort || !input.target) {
+                track.portEffect.hide();
+                track.portStartedAt = null;
+                track.portTargetKey = null;
+                continue;
+            }
             const pulse = reducedMotion ? 0.6 : 0.7 + Math.sin(now * 0.016) * 0.18;
-            const ringOpacity = reducedMotion ? 0.9 : 0.9 + Math.sin(now * 0.009) * 0.04;
-            const radius = portRingRadius / scale;
-            const innerRadius = (portRingRadius - 2.4) / scale;
-            const glowSize = portGlowDiameter / scale;
-            track.portGlow.set({ x: input.target.x - glowSize / 2, y: input.target.y - glowSize / 2, width: glowSize, height: glowSize, opacity: ringOpacity });
-            track.portRing.set({ x: input.target.x - radius, y: input.target.y - radius, width: radius * 2, height: radius * 2, stroke: input.color, strokeWidth: portRingStrokeWidth / scale, opacity: ringOpacity });
-            // 极淡的内侧高光衬出圆环厚度，主轮廓仍只有一圈，不做双层强边。
-            track.portInnerRing.set({ x: input.target.x - innerRadius, y: input.target.y - innerRadius, width: innerRadius * 2, height: innerRadius * 2, stroke: input.color, strokeWidth: 0.6 / scale, opacity: 0.16 * ringOpacity });
-            // 实心点明确标记电弧的实际落点，与外环共用中心及实时屏幕倍率。
-            const dotSize = portDotDiameter / scale;
-            track.portDot.set({ x: input.target.x - dotSize / 2, y: input.target.y - dotSize / 2, width: dotSize, height: dotSize, fill: input.color });
+            const targetKey = `${input.target.x}:${input.target.y}:${input.target.nodeWidth}:${this.effectStyle}`;
+            if (track.portStartedAt === null || track.portTargetKey !== targetKey) {
+                track.portStartedAt = now;
+                track.portTargetKey = targetKey;
+            }
+            track.portEffect.draw({ point: input.target, nodeWidth: input.target.nodeWidth, side: input.freeEnd === "end" ? "left" : "right", color: input.color, dotColor: input.ink, style: this.effectStyle, elapsed: now - track.portStartedAt, success: false, reducedMotion });
             if (reducedMotion) continue;
             animating = true;
             for (let index = 0; index < track.arcs.length; index += 1) {
@@ -249,21 +227,8 @@ export class CanvasConnectionCableScene {
                 return false;
             }
             flash.group.set({ x: offset.x, y: offset.y });
-            const portFade = Math.max(0, 1 - elapsed / 320) ** 2;
-            // 原片逐帧可见两道错时外扩的圆波；提示环仍为 20px，成功后不叠第三道固定环。
-            flash.ripples.forEach((ripple, index) => {
-                const delay = index * 65;
-                const progress = Math.max(0, Math.min(1, (elapsed - delay) / 500));
-                const strokeWidth = (1.2 - 0.5 * progress) / scale;
-                const radius = (portRingRadius + connectionHandleDiameter * 0.9 * progress) / scale - strokeWidth / 2;
-                const { x, y } = flash.point;
-                // 圆心写入世界路径；线性扩张配合较缓淡出，让大圈阶段仍能看清。
-                ripple.set({ visible: elapsed >= delay && progress < 1, path: `M ${x + radius} ${y} A ${radius} ${radius} 0 1 0 ${x - radius} ${y} A ${radius} ${radius} 0 1 0 ${x + radius} ${y} Z`, strokeWidth, opacity: 0.48 * (1 - progress) ** 1.4 });
-            });
-            const glowSize = portGlowDiameter / scale;
-            flash.glow.set({ x: flash.point.x - glowSize / 2, y: flash.point.y - glowSize / 2, width: glowSize, height: glowSize, opacity: portFade });
-            const dotSize = portDotDiameter / scale;
-            flash.dot.set({ x: flash.point.x - dotSize / 2, y: flash.point.y - dotSize / 2, width: dotSize, height: dotSize, opacity: portFade });
+            // 靠近与成功共用所选接点材质；同一 elapsed 驱动，650ms 内完成扩散与淡出。
+            flash.portEffect.draw({ point: flash.point, nodeWidth: flash.bounds.width, side: flash.side, color: flash.color, dotColor: flash.color, style: this.effectStyle, elapsed, success: true, reducedMotion });
 
             // 参考里的冲击波沿目标的圆角边框分成两股传播，不是扩大端口圆圈。
             // 仅向外偏移一个屏幕像素，让现有节点覆盖层也能清楚看到边缘亮带。
