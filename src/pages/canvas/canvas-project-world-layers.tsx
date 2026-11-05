@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, type CS
 import { Link2 } from "lucide-react";
 
 import { ConnectionPath, canvasConnectionPath } from "@/components/canvas/canvas-connections";
-import { canvasNodeDragGeometry, subscribeCanvasNodeDragPreview, type CanvasNodeDragPreview } from "@/lib/canvas/canvas-live-viewport";
+import { canvasNodeDragGeometry, getCanvasConnectionImpactPreview, subscribeCanvasConnectionImpactPreview, subscribeCanvasNodeDragPreview, type CanvasNodeDragPreview } from "@/lib/canvas/canvas-live-viewport";
 import { CanvasFrameNode } from "@/components/canvas/canvas-frame-node";
 import { CanvasNode } from "@/components/canvas/canvas-node";
 import type { CanvasVideoCropRect } from "@/components/canvas/canvas-video-crop-dialog";
@@ -132,18 +132,24 @@ export const CanvasProjectWorldLayers = memo(function CanvasProjectWorldLayers(p
         let previousConnections = new Set<CanvasDisplayConnection>();
         const updatePreview = (preview: CanvasNodeDragPreview | null) => {
             connectionDragPreviewRef.current = preview ? { container, projectId: props.projectId, preview } : null;
+            const impacts = getCanvasConnectionImpactPreview(container);
             const currentConnections = new Set<CanvasDisplayConnection>();
-            for (const nodeId of preview?.nodeIds || []) {
+            for (const nodeId of new Set([...(preview?.nodeIds || []), ...impacts.keys()])) {
                 for (const display of connectionsByNodeId.get(nodeId) || []) currentConnections.add(display);
             }
-            // Reset edges leaving the preview as well, including cancellation.
+            // 拖动与接入回弹共用世界坐标几何；退出任一预览的边也须在同帧复位。
             const affectedConnections = new Set([...previousConnections, ...currentConnections]);
             previousConnections = currentConnections;
+            const displayedNode = (node: CanvasNodeData) => {
+                const dragged = canvasNodeDragGeometry(node, preview);
+                const impact = impacts.get(node.id);
+                return impact ? { ...dragged, position: { x: dragged.position.x + impact.x, y: dragged.position.y + impact.y } } : dragged;
+            };
             for (const { connection, from, to } of affectedConnections) {
                 const group = groups.get(connection.id);
                 if (!group) continue;
-                const movedFrom = canvasNodeDragGeometry(from, preview);
-                const movedTo = canvasNodeDragGeometry(to, preview);
+                const movedFrom = displayedNode(from);
+                const movedTo = displayedNode(to);
                 const { pathD, startX, startY, endX, endY } = canvasConnectionPath(connection, movedFrom, movedTo, props.scriptScrollTopById[from.id] || 0, props.scriptScrollTopById[to.id] || 0);
                 group.querySelectorAll<SVGPathElement>("path[d]").forEach((path) => path.setAttribute("d", path.hasAttribute("data-canvas-cable-endpoints") ? `M ${startX} ${startY} l 0 0 M ${endX} ${endY} l 0 0` : pathD));
                 const endpoints = group.querySelectorAll<SVGCircleElement>("circle");
@@ -158,26 +164,33 @@ export const CanvasProjectWorldLayers = memo(function CanvasProjectWorldLayers(p
                 gradient?.setAttribute("y2", String(endY));
             }
         };
-        // Layout effects may refresh while a pointer is still captured. Reapply
-        // its preview before paint and keep cancellation tied to those edges.
+        // 重建 effect 时读取当前回弹 Map，不能等下一帧事件才修正新挂载的描边。
         const retained = connectionDragPreviewRef.current;
         if (retained?.container === container && retained.projectId === props.projectId) updatePreview(retained.preview);
-        else if (retained) {
-            for (const nodeId of retained.preview.nodeIds) {
-                for (const display of connectionsByNodeId.get(nodeId) || []) previousConnections.add(display);
+        else {
+            if (retained) {
+                for (const nodeId of retained.preview.nodeIds) {
+                    for (const display of connectionsByNodeId.get(nodeId) || []) previousConnections.add(display);
+                }
             }
             updatePreview(null);
         }
-        const unsubscribe = subscribeCanvasNodeDragPreview(container, updatePreview);
-        // Hover mounts extra strokes inside a memoized connection. Keep newly
-        // mounted strokes aligned even while the pointer is paused mid-drag.
-        const observer = new MutationObserver(() => {
+        const updateCurrentPreview = () => {
             const live = connectionDragPreviewRef.current;
-            if (live) updatePreview(live.preview);
+            const preview = live?.container === container && live.projectId === props.projectId ? live.preview : null;
+            if (preview || getCanvasConnectionImpactPreview(container).size > 0) updatePreview(preview);
+        };
+        const unsubscribeDrag = subscribeCanvasNodeDragPreview(container, updatePreview);
+        const unsubscribeImpact = subscribeCanvasConnectionImpactPreview(container, () => {
+            const live = connectionDragPreviewRef.current;
+            updatePreview(live?.container === container && live.projectId === props.projectId ? live.preview : null);
         });
+        // 悬停会增添描边；同帧沿用当前拖动／回弹，保持线身、端点和高光一致。
+        const observer = new MutationObserver(updateCurrentPreview);
         observer.observe(layer, { childList: true, subtree: true });
         return () => {
-            unsubscribe();
+            unsubscribeDrag();
+            unsubscribeImpact();
             observer.disconnect();
         };
     }, [props.containerRef, props.displayConnections, props.projectId, props.scriptScrollTopById]);

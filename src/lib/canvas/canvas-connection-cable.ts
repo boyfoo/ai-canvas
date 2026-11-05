@@ -1,4 +1,4 @@
-import { spring } from "motion";
+import { cubicBezier, easeInOut, easeOut, interpolate, spring } from "motion";
 
 /** 加号圆钮与接入口光圈共用的屏幕外径，包含各自描边；不随画布缩放。 */
 export const connectionHandleDiameter = 20;
@@ -7,6 +7,24 @@ export const connectionHandleDiameter = 20;
 export interface CablePoint {
     x: number;
     y: number;
+}
+
+/** 接入回弹统一按毫秒采样，由调用方的现有动画时钟推进。 */
+export const connectionImpactDuration = 560;
+
+// 近似原片峰顶缓慢反向、随后加速的连续回程，不代表原片的物理参数。
+// 回程与收尾的端点速度均为零，避免独立 easeOut 在峰顶骤然反向。
+const impactOffsetAt = interpolate(
+    [0, connectionImpactDuration * 0.22, connectionImpactDuration * 0.7, connectionImpactDuration],
+    [0, 1, -0.15, 0],
+    { ease: [easeOut, cubicBezier(0.6, 0, 0.7, 1), easeInOut] },
+);
+
+/** 节点、线头和光波共用世界位移；镜头自然缩放，水平按接入侧镜像。 */
+export function cableImpactOffset(elapsed: number, width: number, side: "left" | "right"): CablePoint {
+    if (elapsed <= 0 || elapsed >= connectionImpactDuration) return { x: 0, y: 0 };
+    const distance = width * 0.02 * impactOffsetAt(elapsed);
+    return { x: (side === "left" ? 1 : -1) * distance, y: -distance * 0.225 };
 }
 
 export interface CableControls {

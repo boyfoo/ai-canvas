@@ -1,9 +1,17 @@
-import type { CanvasNodeData, SelectionBox, ViewportTransform } from "@/types/canvas";
+import type { CanvasNodeData, Position, SelectionBox, ViewportTransform } from "@/types/canvas";
 
 export const CANVAS_VIEWPORT_PREVIEW_EVENT = "canvas:viewport-preview";
 export const CANVAS_GRAPHICS_VIEWPORT_PREVIEW_EVENT = "canvas:graphics-viewport-preview";
 export const CANVAS_SELECTION_PREVIEW_EVENT = "canvas:selection-preview";
 export const CANVAS_NODE_DRAG_PREVIEW_EVENT = "canvas:node-drag-preview";
+export const CANVAS_CONNECTION_IMPACT_PREVIEW_EVENT = "canvas:connection-impact-preview";
+
+export type CanvasConnectionImpactPreview = ReadonlyMap<string, Position>;
+export type CanvasConnectionImpactFeedback = {
+    nodeId: string;
+    update(offset: Position): boolean;
+    finish(): void;
+};
 
 export type CanvasNodeDragPreview = {
     x: number;
@@ -34,6 +42,11 @@ type NodeSelectionPreviewDomState = {
     previousStates: Map<string, "include" | "remove">;
 };
 
+type ConnectionImpactPreviewDomState = {
+    offsets: Map<string, Position>;
+    sessions: Map<string, CanvasConnectionImpactFeedback>;
+};
+
 export type CanvasNodeSelectionPreview = {
     includeNodeIds: ReadonlySet<string>;
     removeNodeIds: ReadonlySet<string>;
@@ -41,6 +54,8 @@ export type CanvasNodeSelectionPreview = {
 
 const nodeDragPreviewDomStates = new WeakMap<HTMLDivElement, NodeDragPreviewDomState>();
 const nodeSelectionPreviewDomStates = new WeakMap<HTMLDivElement, NodeSelectionPreviewDomState>();
+const connectionImpactPreviewDomStates = new WeakMap<HTMLElement, ConnectionImpactPreviewDomState>();
+const emptyConnectionImpactPreview: CanvasConnectionImpactPreview = new Map();
 const liveViewportElements = new WeakMap<HTMLDivElement, { worldLayer: HTMLElement | null }>();
 const observedScaleContainers = new WeakSet<HTMLDivElement>();
 const LIVE_SCALE_SELECTOR = "[data-canvas-live-scale], [data-canvas-selection-preview]";
@@ -192,6 +207,55 @@ export function subscribeCanvasNodeDragPreview(container: HTMLDivElement, listen
     const handlePreview = (event: Event) => listener((event as CustomEvent<CanvasNodeDragPreview | null>).detail);
     container.addEventListener(CANVAS_NODE_DRAG_PREVIEW_EVENT, handlePreview);
     return () => container.removeEventListener(CANVAS_NODE_DRAG_PREVIEW_EVENT, handlePreview);
+}
+
+/** 成功接线的整节点位移预览，由连线场景统一推进，不写节点位置或 React 状态。 */
+export function beginCanvasConnectionImpactPreview(container: HTMLElement, nodeId: string): CanvasConnectionImpactFeedback | null {
+    if (!container.isConnected) return null;
+    const root = container.querySelector<HTMLElement>(`[data-node-id="${CSS.escape(nodeId)}"]`);
+    if (!root?.isConnected || root.closest(".no-motion")) return null;
+
+    let state = connectionImpactPreviewDomStates.get(container);
+    if (!state) {
+        state = { offsets: new Map(), sessions: new Map() };
+        connectionImpactPreviewDomStates.set(container, state);
+    }
+    const { offsets, sessions } = state;
+    sessions.get(nodeId)?.finish();
+    let lastTranslate: string | null = null;
+    const session: CanvasConnectionImpactFeedback = {
+        nodeId,
+        update(offset) {
+            if (sessions.get(nodeId) !== session || !root.isConnected || !container.contains(root) || root.closest(".no-motion")) return false;
+            root.style.translate = `${offset.x}px ${offset.y}px`;
+            lastTranslate = root.style.translate;
+            root.dataset.canvasConnectionImpact = "true";
+            offsets.set(nodeId, { x: offset.x, y: offset.y });
+            container.dispatchEvent(new CustomEvent<CanvasConnectionImpactPreview>(CANVAS_CONNECTION_IMPACT_PREVIEW_EVENT, { detail: offsets }));
+            return true;
+        },
+        finish() {
+            if (sessions.get(nodeId) !== session) return;
+            sessions.delete(nodeId);
+            // 真实拖动可能已先写入 translate，再通知场景取消冲击；只清除自己仍拥有的值。
+            if (lastTranslate !== null && root.style.translate === lastTranslate) root.style.removeProperty("translate");
+            delete root.dataset.canvasConnectionImpact;
+            offsets.delete(nodeId);
+            container.dispatchEvent(new CustomEvent<CanvasConnectionImpactPreview>(CANVAS_CONNECTION_IMPACT_PREVIEW_EVENT, { detail: offsets }));
+        },
+    };
+    sessions.set(nodeId, session);
+    return session;
+}
+
+export function getCanvasConnectionImpactPreview(container: HTMLElement): CanvasConnectionImpactPreview {
+    return connectionImpactPreviewDomStates.get(container)?.offsets ?? emptyConnectionImpactPreview;
+}
+
+export function subscribeCanvasConnectionImpactPreview(container: HTMLElement, listener: (preview: CanvasConnectionImpactPreview) => void) {
+    const handlePreview = (event: Event) => listener((event as CustomEvent<CanvasConnectionImpactPreview>).detail);
+    container.addEventListener(CANVAS_CONNECTION_IMPACT_PREVIEW_EVENT, handlePreview);
+    return () => container.removeEventListener(CANVAS_CONNECTION_IMPACT_PREVIEW_EVENT, handlePreview);
 }
 
 /**

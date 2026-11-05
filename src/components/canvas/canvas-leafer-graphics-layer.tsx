@@ -3,7 +3,7 @@ import { Group, Leafer, Path, Rect } from "leafer-ui";
 import { useReducedMotion } from "motion/react";
 
 import { connectionHandleY } from "@/components/canvas/canvas-connections";
-import { playCanvasConnectionImpact } from "@/components/canvas/use-canvas-connection-feedback";
+import { prepareCanvasConnectionImpact } from "@/components/canvas/use-canvas-connection-feedback";
 import { connectionColor } from "@/lib/canvas/canvas-connection-cable";
 import { CanvasConnectionCableScene, type CanvasCableDraft } from "@/lib/canvas/canvas-connection-cable-scene";
 import type { CanvasBatchConnectionPreview } from "@/lib/canvas/canvas-batch-connection";
@@ -107,15 +107,19 @@ export function CanvasLeaferGraphicsLayer(props: CanvasLeaferGraphicsLayerProps)
             syncSelection(overlay.selection, selection, propsRef.current.theme);
         });
         const unsubscribeNodeDrag = subscribeCanvasNodeDragPreview(container, (preview) => {
+            if (preview) overlay.cables.cancelImpacts();
             overlay.dragPreview = preview;
             syncLiveSelectionBounds(overlay, propsRef.current, viewportRef.current.k);
         });
+        const cancelImpact = () => overlay.cables.cancelImpacts();
+        container.addEventListener("pointerdown", cancelImpact, true);
         resize();
 
         return () => {
             unsubscribe();
             unsubscribeSelection();
             unsubscribeNodeDrag();
+            container.removeEventListener("pointerdown", cancelImpact, true);
             resizeObserver.disconnect();
             window.removeEventListener("resize", resize);
             overlay.cables.destroy();
@@ -144,13 +148,13 @@ export function CanvasLeaferGraphicsLayer(props: CanvasLeaferGraphicsLayerProps)
             // 批量多行端口可能同时接入同一框，整框冲击波只触发一次。
             flashedPorts.add(targetId);
             const cornerRadius = Number.parseFloat(getComputedStyle(overlay.host).getPropertyValue("--node-radius"));
+            const container = props.containerRef.current;
             overlay.cables.flash(
                 { x: target.position.x + (reversed ? target.width : 0), y: connectionHandleY(target, handleId, props.scriptScrollTopById[targetId] || 0) },
                 connectionColor(props.theme.canvas.background === "#f0f0f0"),
                 { x: target.position.x, y: target.position.y, width: target.width, height: target.height, cornerRadius },
+                container ? prepareCanvasConnectionImpact(container, targetId) : null,
             );
-            const container = props.containerRef.current;
-            if (container) playCanvasConnectionImpact(container, targetId, reversed ? "right" : "left");
         }
         connectionIdsRef.current = new Set(props.connections.map((connection) => connection.id));
         previousInteractionRef.current = { single: props.connectingParams, batch: props.batchConnectionPreview };
@@ -199,7 +203,7 @@ function createOverlayScene(host: HTMLDivElement): OverlayScene {
     world.add(selection);
     world.add(selectionBounds);
     world.add(guides);
-    const cables = new CanvasConnectionCableScene(world, host);
+    const cables = new CanvasConnectionCableScene(world, host, () => leafer.forceRender(undefined, true));
     leafer.add(world);
     return { leafer, world, host, selection, selectionBounds, guides, cables, dragPreview: null };
 }

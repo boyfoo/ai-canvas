@@ -1,6 +1,7 @@
 import { Ellipse, Group, Path } from "leafer-ui";
 
-import { advanceCableMotion, cableImpactContour, cablePath, cableStroke, connectionHandleDiameter, createCableMotion, type CableImpactBounds, type CableMotion, type CablePoint } from "./canvas-connection-cable";
+import { advanceCableMotion, cableImpactContour, cableImpactOffset, cablePath, cableStroke, connectionHandleDiameter, createCableMotion, type CableImpactBounds, type CableMotion, type CablePoint } from "./canvas-connection-cable";
+import type { CanvasConnectionImpactFeedback } from "./canvas-live-viewport";
 
 /** 只接收绘制坐标与合法目标；是否允许连接仍由原连接控制器决定。 */
 export type CanvasCableDraft = {
@@ -30,7 +31,7 @@ type CableTrack = {
 };
 
 type ImpactBranch = { glow: Path; tail: Path; head: Path; light: Ellipse; wake: Ellipse };
-type CableFlash = { point: CablePoint; bounds: CableImpactBounds; color: string; startedAt: number | null; glow: Ellipse; ripples: Path[]; dot: Ellipse; branches: ImpactBranch[] };
+type CableFlash = { point: CablePoint; bounds: CableImpactBounds; side: "left" | "right"; feedback: CanvasConnectionImpactFeedback | null; color: string; startedAt: number | null; group: Group; glow: Ellipse; ripples: Path[]; dot: Ellipse; branches: ImpactBranch[] };
 
 // 接入口反馈圈单独使用固定屏幕尺寸，避免跟随均衡档的细线和小端点一起缩小。
 const portRingRadius = connectionHandleDiameter / 2;
@@ -52,7 +53,7 @@ export class CanvasConnectionCableScene {
     private destroyed = false;
     private flashes: CableFlash[] = [];
 
-    constructor(private readonly parent: Group, private readonly host: HTMLDivElement) {}
+    constructor(private readonly parent: Group, private readonly host: HTMLDivElement, private readonly render: () => void) {}
 
     /** 有固定屏幕尺寸的临时线缆／光圈时，镜头预览需同步绘制，避免旧栅格被成倍缩放。 */
     get hasContent() {
@@ -62,6 +63,7 @@ export class CanvasConnectionCableScene {
     sync(inputs: CanvasCableDraft[], scale: number, reducedMotion: boolean) {
         this.scale = Math.max(scale, 0.05);
         this.reducedMotion = reducedMotion;
+        if (inputs.some((input) => !this.tracks.has(input.id))) this.cancelImpacts();
         const ids = new Set(inputs.map((input) => input.id));
         for (const [id, track] of this.tracks) {
             if (ids.has(id)) continue;
@@ -87,14 +89,25 @@ export class CanvasConnectionCableScene {
     }
 
     /** 只由真实新增连接触发，取消、非法目标与页面初次加载不能调用。 */
-    flash(point: CablePoint, color: string, bounds: CableImpactBounds) {
-        if (this.destroyed || this.reducedMotion || this.host.closest(".no-motion")) return;
+    flash(point: CablePoint, color: string, bounds: CableImpactBounds, feedback: CanvasConnectionImpactFeedback | null) {
+        if (this.destroyed || this.reducedMotion || this.host.closest(".no-motion")) {
+            feedback?.finish();
+            return;
+        }
+        // 一个目标只保留本次受力；旧会话释放时不会清掉已经接管的新预览。
+        if (feedback) this.flashes = this.flashes.filter((flash) => {
+            if (flash.feedback?.nodeId !== feedback.nodeId) return true;
+            destroyFlash(flash);
+            return false;
+        });
+        const group = new Group({ hittable: false });
+        this.parent.add(group);
         const glow = new Ellipse({ hittable: false, fill: lightFill(color, portGlowStrength) });
         const ripples = Array.from({ length: 2 }, () => new Path({ hittable: false, fill: "transparent", stroke: color }));
         const dot = new Ellipse({ hittable: false, fill: color });
-        this.parent.add(glow);
-        ripples.forEach((ripple) => this.parent.add(ripple));
-        this.parent.add(dot);
+        group.add(glow);
+        ripples.forEach((ripple) => group.add(ripple));
+        group.add(dot);
         const branches = Array.from({ length: 2 }, () => {
             const options = { hittable: false, visible: false, strokeCap: "round" as const, strokeJoin: "round" as const };
             const branch = {
@@ -102,15 +115,26 @@ export class CanvasConnectionCableScene {
                 light: new Ellipse({ hittable: false, visible: false, fill: lightFill(color, 0.75) }),
                 wake: new Ellipse({ hittable: false, visible: false, fill: lightFill(color, 0.3) }),
             };
-            this.parent.add(branch.wake);
-            this.parent.add(branch.light);
-            this.parent.add(branch.glow);
-            this.parent.add(branch.tail);
-            this.parent.add(branch.head);
+            group.add(branch.wake);
+            group.add(branch.light);
+            group.add(branch.glow);
+            group.add(branch.tail);
+            group.add(branch.head);
             return branch;
         });
-        this.flashes.push({ point, bounds, color, startedAt: null, glow, ripples, dot, branches });
+        const side = Math.abs(point.x - bounds.x) <= Math.abs(point.x - bounds.x - bounds.width) ? "left" : "right";
+        this.flashes.push({ point, bounds, side, feedback, color, startedAt: null, group, glow, ripples, dot, branches });
         this.draw(performance.now());
+    }
+
+    /** 真实拖动／新接线优先，先归还节点与 SVG 的临时几何再处理新的操作。 */
+    cancelImpacts() {
+        if (!this.flashes.length) return;
+        const flashes = this.flashes;
+        this.flashes = [];
+        flashes.forEach(destroyFlash);
+        this.draw(performance.now());
+        this.render();
     }
 
     destroy() {
@@ -156,6 +180,7 @@ export class CanvasConnectionCableScene {
         // 同步更新保留已排队的首帧，连续缩放也不能反复推迟成功反馈的启动。
         if (animationFrame) this.frame = null;
         let animating = false;
+        const hadImpacts = this.flashes.length > 0;
         const scale = this.scale;
         const reducedMotion = this.reducedMotion || Boolean(this.host.closest(".no-motion"));
         for (const track of this.tracks.values()) {
@@ -217,6 +242,13 @@ export class CanvasConnectionCableScene {
                 destroyFlash(flash);
                 return false;
             }
+            // 一份 elapsed 同帧驱动整节点、SVG 接线及光波；位移始终使用世界坐标。
+            const offset = flash.feedback ? cableImpactOffset(elapsed, flash.bounds.width, flash.side) : { x: 0, y: 0 };
+            if (flash.feedback && !flash.feedback.update(offset)) {
+                destroyFlash(flash);
+                return false;
+            }
+            flash.group.set({ x: offset.x, y: offset.y });
             const portFade = Math.max(0, 1 - elapsed / 320) ** 2;
             // 原片逐帧可见两道错时外扩的圆波；提示环仍为 20px，成功后不叠第三道固定环。
             flash.ripples.forEach((ripple, index) => {
@@ -241,7 +273,7 @@ export class CanvasConnectionCableScene {
             const tailLength = Math.min(92 / scale, contour.length * 0.18);
             const headLength = Math.min(28 / scale, tailLength * 0.4);
             const fadeOut = Math.max(0, Math.min(1, (progress - 0.68) / 0.32));
-            const fade = Math.min(1, progress / 0.07) * (1 - fadeOut * fadeOut * (3 - 2 * fadeOut));
+            const fade = Math.min(1, elapsed / 24) * (1 - fadeOut * fadeOut * (3 - 2 * fadeOut));
             flash.branches.forEach((branch, index) => {
                 const common = { visible: true, path: contour.paths[index], dashPattern: [tailLength, contour.length * 2], dashOffset: tailLength - distance };
                 // 光斑负责卡片内外的柔和染色；描边只保留细亮边，不画均匀白色硬条。
@@ -256,9 +288,12 @@ export class CanvasConnectionCableScene {
             animating = true;
             return true;
         });
+        // Leafer 与 DOM/SVG 在本次绘制中一起提交，避免光波晚一帧才跟上节点。
+        if (hadImpacts) this.render();
         this.host.dataset.canvasCableAnimating = animating ? "true" : "false";
         if (animating && !reducedMotion) {
-            if (this.frame === null) this.frame = requestAnimationFrame((time) => this.draw(time, true));
+            // 与 sync/setScale 使用同一实际时刻；繁忙帧较早的 rAF 时间戳会跳过起势。
+            if (this.frame === null) this.frame = requestAnimationFrame(() => this.draw(performance.now(), true));
         }
         else if (this.frame !== null) {
             cancelAnimationFrame(this.frame);
@@ -268,10 +303,8 @@ export class CanvasConnectionCableScene {
 }
 
 function destroyFlash(flash: CableFlash) {
-    flash.glow.destroy();
-    flash.ripples.forEach((ripple) => ripple.destroy());
-    flash.dot.destroy();
-    flash.branches.forEach(({ glow, tail, head, light, wake }) => { glow.destroy(); tail.destroy(); head.destroy(); light.destroy(); wake.destroy(); });
+    flash.group.destroy();
+    flash.feedback?.finish();
 }
 
 /** 复用 Leafer 的径向渐变，透明外缘形成真实光照衰减，避免靠宽描边堆出色块。 */

@@ -2,47 +2,37 @@ import { animate, useReducedMotion, visualElementStore } from "motion/react";
 import { useLayoutEffect, useRef, type RefObject } from "react";
 
 import type { CanvasConnectionTilt } from "@/lib/canvas/canvas-connection-tilt";
+import { beginCanvasConnectionImpactPreview, type CanvasConnectionImpactFeedback } from "@/lib/canvas/canvas-live-viewport";
 
 const flat = { x: 0, y: 0, z: 0, rotateX: 0, rotateY: 0, rotateZ: 0, scale: 1 };
 const spring = { type: "spring", stiffness: 300, damping: 22, mass: 0.7 } as const;
 const impactEvent = "canvas-connection-impact";
-type ConnectionImpact = { side: "left" | "right" };
 
-/** 仅由真实新增连接触发，等布局阶段清除拖线倾斜后再播放成功反馈。 */
-export function playCanvasConnectionImpact(container: HTMLElement, nodeId: string, side: "left" | "right") {
-    queueMicrotask(() => {
-        requestAnimationFrame(() => {
-            if (!container.isConnected) return;
-            const surface = container.querySelector<HTMLDivElement>(`[data-node-id="${CSS.escape(nodeId)}"] > .canvas-node-motion-surface`);
-            surface?.dispatchEvent(new CustomEvent<ConnectionImpact>(impactEvent, { detail: { side } }));
-        });
-    });
+/** 同步清除拖线倾斜，成功位移与光波统一由连线场景的同一个 RAF 推进。 */
+export function prepareCanvasConnectionImpact(container: HTMLElement, nodeId: string): CanvasConnectionImpactFeedback | null {
+    if (!container.isConnected) return null;
+    const surface = container.querySelector<HTMLDivElement>(`[data-node-id="${CSS.escape(nodeId)}"] > .canvas-node-motion-surface`);
+    if (!surface) return null;
+    surface.dispatchEvent(new CustomEvent(impactEvent));
+    return beginCanvasConnectionImpactPreview(container, nodeId);
 }
 
-/** 拖线时保留目标倾斜与移出回弹；结束立即回正，成功接入单独播放纯 2D 位移回弹。 */
+/** 只负责拖线目标倾斜与移出回弹；接线结束或成功反馈准备时立即回正。 */
 export function useCanvasConnectionFeedback(surfaceRef: RefObject<HTMLDivElement | null>, tilt: CanvasConnectionTilt, connectionActive: boolean) {
     const reducedMotion = useReducedMotion();
     const hoverControls = useRef<ReturnType<typeof animate> | null>(null);
-    const impactControls = useRef<ReturnType<typeof animate> | null>(null);
     const engaged = useRef(false);
 
     useLayoutEffect(() => {
         const surface = surfaceRef.current;
         if (!surface) return;
         if (!connectionActive || reducedMotion || surface.closest(".no-motion")) {
-            if (!hoverControls.current && !impactControls.current && !engaged.current && !surface.dataset.connectionMotion) return;
+            if (!hoverControls.current && !engaged.current && !surface.dataset.connectionMotion) return;
             hoverControls.current?.stop();
             hoverControls.current = null;
-            impactControls.current?.stop();
-            impactControls.current = null;
             engaged.current = false;
             resetConnectionTransform(surface);
             return;
-        }
-        if (impactControls.current) {
-            impactControls.current.stop();
-            impactControls.current = null;
-            resetConnectionTransform(surface);
         }
         if (!tilt && !engaged.current) return;
 
@@ -63,56 +53,21 @@ export function useCanvasConnectionFeedback(surfaceRef: RefObject<HTMLDivElement
     useLayoutEffect(() => {
         const surface = surfaceRef.current;
         if (!surface) return;
-        const playImpact = (event: Event) => {
-            if (connectionActive || reducedMotion || !surface.isConnected || surface.closest(".no-motion")) return;
-            const { side } = (event as CustomEvent<ConnectionImpact>).detail;
+        const prepareImpact = () => {
             hoverControls.current?.stop();
             hoverControls.current = null;
-            impactControls.current?.stop();
-            impactControls.current = null;
             engaged.current = false;
             resetConnectionTransform(surface);
-            surface.dataset.connectionMotion = "true";
-
-            // 用节点几何而非固定屏幕 20px 提示圈标定世界位移，镜头缩放直接作用于同一回弹。
-            // x/y 共用节点宽度保留参考位移方向；缩放、3D 轴与透视保持复位。
-            const width = surface.clientWidth;
-            const distance = width * 0.03;
-            const direction = side === "left" ? 1 : -1;
-            let pulse: ReturnType<typeof animate> | null = null;
-            pulse = animate(surface, {
-                x: [0, direction * distance, -direction * distance * 0.15, 0],
-                y: [0, -distance * 0.225, distance * 0.03, 0],
-            }, {
-                duration: 0.56,
-                times: [0, 0.22, 0.7, 1],
-                ease: "easeOut",
-                onUpdate: () => {
-                    if (!pulse || impactControls.current !== pulse || (surface.isConnected && !surface.closest(".no-motion"))) return;
-                    pulse.stop();
-                    impactControls.current = null;
-                    resetConnectionTransform(surface);
-                },
-            });
-            impactControls.current = pulse;
-            const current = pulse;
-            void current.then(() => {
-                if (impactControls.current !== current || !surface.isConnected) return;
-                impactControls.current = null;
-                resetConnectionTransform(surface);
-            });
         };
-        surface.addEventListener(impactEvent, playImpact);
-        return () => surface.removeEventListener(impactEvent, playImpact);
-    }, [surfaceRef, reducedMotion, connectionActive]);
+        surface.addEventListener(impactEvent, prepareImpact);
+        return () => surface.removeEventListener(impactEvent, prepareImpact);
+    }, [surfaceRef]);
 
     useLayoutEffect(() => {
         const surface = surfaceRef.current;
         return () => {
             hoverControls.current?.stop();
             hoverControls.current = null;
-            impactControls.current?.stop();
-            impactControls.current = null;
             engaged.current = false;
             if (surface) resetConnectionTransform(surface);
         };
