@@ -196,7 +196,7 @@ export function createCableMotion(start: CablePoint, end: CablePoint, scale = 1,
 /**
  * nowMs 由调用方传入单调递增的毫秒时间（例如 RAF 的时间戳）。
  * Motion 解析弹簧负责位置、速度与收敛，重定向继承当前速度，避免自行积分和掉帧发散。
- * 鼠标端点没有弹簧延迟；只有线身控制点滞后。结束拖线时直接丢弃此状态。
+ * 鼠标端点没有弹簧延迟；只有线身控制点滞后。成功释放时由场景接管最后绘出的控制点，连续过渡到正式线。
  */
 export function advanceCableMotion(state: CableMotion, start: CablePoint, end: CablePoint, nowMs: number, scale = 1): CableMotionFrame {
     const target = cableControls(start, end, scale);

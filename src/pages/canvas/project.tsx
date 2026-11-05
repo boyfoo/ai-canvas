@@ -910,13 +910,16 @@ function InfiniteCanvasPage() {
 
     const linkedFolderPreviewNodesById = useMemo(() => buildLinkedFolderPreviewNodes(assets, linkedProjectQuery.data?.assets || []), [assets, linkedProjectQuery.data?.assets]);
 
+    // 松手后的吸附与撞框仍需目标的真实 DOM；不能随拖线状态清空而退回 LOD。
+    const [connectionFeedbackNodeIds, setConnectionFeedbackNodeIds] = useState<ReadonlySet<string>>(() => new Set());
     const singleSelectedNodeId = selectedNodeIds.size === 1 ? selectedNodeIds.values().next().value ?? null : null;
     // Nodes that need live controls stay as DOM cards above the overview canvas.
     const lodPinnedNodeIds = useMemo(() => new Set([
         lodHoverNodeId, hoveredNodeId, singleSelectedNodeId, activeMediaNodeId, dialogNodeId,
         cropNodeId, videoCropNodeId, annotationNodeId, maskEditNodeId,
         connectionTargetNodeId, connectingParams?.nodeId,
-    ].filter((nodeId): nodeId is string => Boolean(nodeId))), [activeMediaNodeId, annotationNodeId, connectingParams?.nodeId, connectionTargetNodeId, cropNodeId, dialogNodeId, hoveredNodeId, lodHoverNodeId, maskEditNodeId, singleSelectedNodeId, videoCropNodeId]);
+        ...connectionFeedbackNodeIds,
+    ].filter((nodeId): nodeId is string => Boolean(nodeId))), [activeMediaNodeId, annotationNodeId, connectingParams?.nodeId, connectionFeedbackNodeIds, connectionTargetNodeId, cropNodeId, dialogNodeId, hoveredNodeId, lodHoverNodeId, maskEditNodeId, singleSelectedNodeId, videoCropNodeId]);
 
     const renderModel = useCanvasRenderModel({
         nodes,
@@ -1476,6 +1479,8 @@ function InfiniteCanvasPage() {
                                         />
                                         <CanvasLeaferGraphicsLayer
                                             containerRef={containerRef}
+                                            projectId={projectId}
+                                            onConnectionFeedbackNodesChange={setConnectionFeedbackNodeIds}
                                             viewport={viewport}
                                             theme={theme}
                                             connectionPortEffect={connectionPortEffect}

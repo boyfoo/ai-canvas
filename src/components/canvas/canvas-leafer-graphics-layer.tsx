@@ -18,6 +18,9 @@ type NodeBounds = { left: number; top: number; width: number; height: number; co
 
 type CanvasLeaferGraphicsLayerProps = {
     containerRef: RefObject<HTMLDivElement | null>;
+    projectId: string;
+    /** 释放和冲击的目标需持续保留 DOM，避免 LOD 在接触前移除反馈宿主。 */
+    onConnectionFeedbackNodesChange: (nodeIds: ReadonlySet<string>) => void;
     viewport: ViewportTransform;
     theme: CanvasTheme;
     connectionPortEffect: CanvasPortEffectStyle;
@@ -66,8 +69,10 @@ export function CanvasLeaferGraphicsLayer(props: CanvasLeaferGraphicsLayerProps)
         const container = (props.containerRef.current || overlayHost?.parentElement) as HTMLDivElement | null;
         if (!overlayHost || !container) return;
 
-        const overlay = createOverlayScene(overlayHost);
+        const overlay = createOverlayScene(overlayHost, (nodeIds) => propsRef.current.onConnectionFeedbackNodesChange(nodeIds));
         overlayRef.current = overlay;
+        previousInteractionRef.current = { single: null, batch: null };
+        connectionIdsRef.current = new Set(propsRef.current.connections.map((connection) => connection.id));
 
         const resize = () => {
             const rect = container.getBoundingClientRect();
@@ -128,14 +133,13 @@ export function CanvasLeaferGraphicsLayer(props: CanvasLeaferGraphicsLayerProps)
             overlay.leafer.destroy(true);
             overlayRef.current = null;
         };
-    }, [props.containerRef]);
+    }, [props.containerRef, props.projectId]);
 
     useLayoutEffect(() => {
         const overlay = overlayRef.current;
         if (!overlay) return;
-        syncOverlayContent(overlay, props, viewportRef.current.k, Boolean(reducedMotion));
         const previous = previousInteractionRef.current;
-        const flashedPorts = new Set<string>();
+        const contacts = new Map<string, { target: CanvasNodeData; entries: { trackId: string; point: Position }[] }>();
         for (const connection of props.connections) {
             if (connectionIdsRef.current.has(connection.id)) continue;
             const single = previous.single;
@@ -146,21 +150,32 @@ export function CanvasLeaferGraphicsLayer(props: CanvasLeaferGraphicsLayerProps)
             const targetId = reversed ? connection.fromNodeId : connection.toNodeId;
             const handleId = reversed ? connection.fromHandleId : connection.toHandleId;
             const target = props.nodeById.get(targetId);
-            if (!target || flashedPorts.has(targetId)) continue;
-            // 批量多行端口可能同时接入同一框，整框冲击波只触发一次。
-            flashedPorts.add(targetId);
+            if (!target) continue;
+            const contact = contacts.get(targetId) || { target, entries: [] };
+            contact.entries.push({
+                trackId: fromSingle ? `${single.nodeId}:${single.handleType}:${single.handleId || ""}` : `batch:${connection.fromNodeId}`,
+                point: { x: target.position.x + (reversed ? target.width : 0), y: connectionHandleY(target, handleId, props.scriptScrollTopById[targetId] || 0) },
+            });
+            contacts.set(targetId, contact);
+        }
+        const immediateFlashes: (() => void)[] = [];
+        for (const [targetId, { target, entries }] of contacts) {
             const cornerRadius = Number.parseFloat(getComputedStyle(overlay.host).getPropertyValue("--node-radius"));
             const container = props.containerRef.current;
-            overlay.cables.flash(
-                { x: target.position.x + (reversed ? target.width : 0), y: connectionHandleY(target, handleId, props.scriptScrollTopById[targetId] || 0) },
-                connectionColor(props.theme.canvas.background === "#f0f0f0"),
-                { x: target.position.x, y: target.position.y, width: target.width, height: target.height, cornerRadius },
-                container ? prepareCanvasConnectionImpact(container, targetId) : null,
-            );
+            const color = connectionColor(props.theme.canvas.background === "#f0f0f0");
+            const bounds = { x: target.position.x, y: target.position.y, width: target.width, height: target.height, cornerRadius };
+            const prepareFeedback = () => container ? prepareCanvasConnectionImpact(container, targetId) : null;
+            let releasing = false;
+            // 必须先接管全部草稿再 sync；同一框的不同端口各自落框，但只撞击一次。
+            for (const { trackId, point } of entries) releasing = overlay.cables.release(trackId, targetId, point, color, bounds, prepareFeedback) || releasing;
+            // 未曾画出草稿的合法新增连接仍沿用原反馈，不伪造释放轨迹。
+            if (!releasing) immediateFlashes.push(() => overlay.cables.flash(targetId, entries[0].point, color, bounds, prepareFeedback()));
         }
+        syncOverlayContent(overlay, props, viewportRef.current.k, Boolean(reducedMotion));
+        immediateFlashes.forEach((flash) => flash());
         connectionIdsRef.current = new Set(props.connections.map((connection) => connection.id));
         previousInteractionRef.current = { single: props.connectingParams, batch: props.batchConnectionPreview };
-    }, [props.batchConnectionPreview, props.connectingParams, props.connectionPortEffect, props.connectionTargetAnchorRatio, props.connectionTargetHandleId, props.connectionTargetNodeId, props.connections, props.mouseWorld, props.nodeById, props.scriptScrollTopById, props.selectedNodeBounds, props.selectionBox, props.theme, reducedMotion]);
+    }, [props.projectId, props.batchConnectionPreview, props.connectingParams, props.connectionPortEffect, props.connectionTargetAnchorRatio, props.connectionTargetHandleId, props.connectionTargetNodeId, props.connections, props.mouseWorld, props.nodeById, props.scriptScrollTopById, props.selectedNodeBounds, props.selectionBox, props.theme, reducedMotion]);
 
     useLayoutEffect(() => {
         const overlay = overlayRef.current;
@@ -196,7 +211,7 @@ export function CanvasLeaferGraphicsLayer(props: CanvasLeaferGraphicsLayerProps)
     );
 }
 
-function createOverlayScene(host: HTMLDivElement): OverlayScene {
+function createOverlayScene(host: HTMLDivElement, onFeedbackNodesChange: (nodeIds: ReadonlySet<string>) => void): OverlayScene {
     const leafer = new Leafer({ view: host, width: 1, height: 1, pixelRatio: canvasPixelRatio(), fill: "transparent", hittable: false, smooth: true });
     const world = new Group({ hittable: false });
     const selection = new Rect({ visible: false, hittable: false });
@@ -205,7 +220,7 @@ function createOverlayScene(host: HTMLDivElement): OverlayScene {
     world.add(selection);
     world.add(selectionBounds);
     world.add(guides);
-    const cables = new CanvasConnectionCableScene(world, host, () => leafer.forceRender(undefined, true));
+    const cables = new CanvasConnectionCableScene(world, host, () => leafer.forceRender(undefined, true), onFeedbackNodesChange);
     leafer.add(world);
     return { leafer, world, host, selection, selectionBounds, guides, cables, dragPreview: null };
 }

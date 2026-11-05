@@ -1,6 +1,7 @@
 import { Ellipse, Group, Path } from "leafer-ui";
+import { easeIn, interpolate } from "motion";
 
-import { advanceCableMotion, cableImpactContour, cableImpactOffset, cablePath, cableStroke, createCableMotion, type CableImpactBounds, type CableMotion, type CablePoint } from "./canvas-connection-cable";
+import { advanceCableMotion, cableControls, cableImpactContour, cableImpactOffset, cablePath, cableStroke, createCableMotion, type CableControls, type CableImpactBounds, type CableMotion, type CablePoint } from "./canvas-connection-cable";
 import { CanvasConnectionPortEffect, type CanvasPortEffectStyle } from "./canvas-connection-port-effect";
 import type { CanvasConnectionImpactFeedback } from "./canvas-live-viewport";
 
@@ -28,14 +29,37 @@ type CableTrack = {
     arcs: Path[];
     arcCores: Path[];
     motion: CableMotion;
+    /** 最后实际画出的端点与控制点，释放从此接续，不追赶尚未提交的鼠标事件。 */
+    rendered: { start: CablePoint; end: CablePoint; controls: CableControls };
 };
 
 type ImpactBranch = { glow: Path; tail: Path; head: Path; light: Ellipse; wake: Ellipse };
-type CableFlash = { point: CablePoint; bounds: CableImpactBounds; side: "left" | "right"; feedback: CanvasConnectionImpactFeedback | null; color: string; startedAt: number | null; group: Group; portEffect: CanvasConnectionPortEffect; branches: ImpactBranch[] };
+type CableFlash = { targetNodeId: string; point: CablePoint; bounds: CableImpactBounds; side: "left" | "right"; feedback: CanvasConnectionImpactFeedback | null; color: string; startedAt: number | null; group: Group; portEffect: CanvasConnectionPortEffect; branches: ImpactBranch[]; offset: CablePoint; finished: boolean };
+type CableReleaseContact = {
+    targetNodeId: string;
+    point: CablePoint;
+    color: string;
+    bounds: CableImpactBounds;
+    prepareFeedback: () => CanvasConnectionImpactFeedback | null;
+    startedAt: number | null;
+    contactedAt: number | null;
+    flash: CableFlash | null;
+};
+type CableRelease = {
+    track: CableTrack;
+    point: CablePoint;
+    contact: CableReleaseContact;
+    geometry: CableTrack["rendered"];
+    colorAt: (progress: number) => string;
+};
+
+const releaseDuration = 60;
+const releaseHoldDuration = 120;
+const releaseFadeDuration = 100;
 
 /**
  * 临时线缆的 Leafer 绘制器。复用现有 world 和 DPR，不创建第二个画布。
- * 端点实时跟随，Motion 只推进线身；静止且没有电弧时停止 RAF。
+ * 拖线期间端点实时跟随、Motion 推进线身；释放与撞击共用同一个 RAF，静止时停止。
  * 无节点数据写入、命中处理或模型请求，销毁时统一释放帧与场景节点。
  */
 export class CanvasConnectionCableScene {
@@ -46,12 +70,24 @@ export class CanvasConnectionCableScene {
     private effectStyle: CanvasPortEffectStyle = "wave";
     private destroyed = false;
     private flashes: CableFlash[] = [];
+    private releases: CableRelease[] = [];
+    private feedbackNodeIds: ReadonlySet<string> = new Set();
 
-    constructor(private readonly parent: Group, private readonly host: HTMLDivElement, private readonly render: () => void) {}
+    constructor(private readonly parent: Group, private readonly host: HTMLDivElement, private readonly render: () => void, private readonly onFeedbackNodesChange: (nodeIds: ReadonlySet<string>) => void) {}
+
+    /** 只在集合改变时通知页面，释放到冲击结束期间目标需保留为可反馈的 DOM 节点。 */
+    private publishFeedbackNodes() {
+        const next = new Set<string>();
+        this.releases.forEach((release) => next.add(release.contact.targetNodeId));
+        this.flashes.forEach((flash) => { if (!flash.finished) next.add(flash.targetNodeId); });
+        if (next.size === this.feedbackNodeIds.size && [...next].every((id) => this.feedbackNodeIds.has(id))) return;
+        this.feedbackNodeIds = next;
+        this.onFeedbackNodesChange(next);
+    }
 
     /** 有临时线缆／光圈时同步镜头预览，确保图形与节点使用同一倍率。 */
     get hasContent() {
-        return this.tracks.size > 0 || this.flashes.length > 0;
+        return this.tracks.size > 0 || this.releases.length > 0 || this.flashes.length > 0;
     }
 
     sync(inputs: CanvasCableDraft[], scale: number, reducedMotion: boolean, effectStyle: CanvasPortEffectStyle) {
@@ -73,8 +109,23 @@ export class CanvasConnectionCableScene {
             }
             else this.tracks.set(input.id, this.createTrack(input, now));
         }
-        this.host.dataset.canvasCableCount = String(inputs.length);
         this.draw(now);
+    }
+
+    /**
+     * 先从 active 草稿接管最后显示的线，再 sync 清空草稿。
+     * 数据连接已经提交；这里只有 60ms 落框、120ms 撞击保亮与 100ms 交接。同一目标共用撞击时钟，
+     * 多行端口仍由各 entry 的 point 保留自己的准确接点。
+     */
+    release(trackId: string, targetNodeId: string, point: CablePoint, color: string, bounds: CableImpactBounds, prepareFeedback: () => CanvasConnectionImpactFeedback | null): boolean {
+        const track = this.tracks.get(trackId);
+        if (!track || this.destroyed) return false;
+        this.tracks.delete(trackId);
+        const contact = this.releases.find((release) => release.contact.targetNodeId === targetNodeId)?.contact
+            || { targetNodeId, point, color, bounds, prepareFeedback, startedAt: null, contactedAt: null, flash: null };
+        this.releases.push({ track, point, contact, geometry: track.rendered, colorAt: interpolate([0, 1], [track.input.ink, color]) });
+        this.publishFeedbackNodes();
+        return true;
     }
 
     setScale(scale: number) {
@@ -83,14 +134,19 @@ export class CanvasConnectionCableScene {
     }
 
     /** 只由真实新增连接触发，取消、非法目标与页面初次加载不能调用。 */
-    flash(point: CablePoint, color: string, bounds: CableImpactBounds, feedback: CanvasConnectionImpactFeedback | null) {
+    flash(targetNodeId: string, point: CablePoint, color: string, bounds: CableImpactBounds, feedback: CanvasConnectionImpactFeedback | null) {
         if (this.destroyed || this.reducedMotion || this.host.closest(".no-motion")) {
             feedback?.finish();
             return;
         }
+        this.createFlash(targetNodeId, point, color, bounds, feedback);
+        this.draw(performance.now());
+    }
+
+    private createFlash(targetNodeId: string, point: CablePoint, color: string, bounds: CableImpactBounds, feedback: CanvasConnectionImpactFeedback | null): CableFlash {
         // 一个目标只保留本次受力；旧会话释放时不会清掉已经接管的新预览。
         if (feedback) this.flashes = this.flashes.filter((flash) => {
-            if (flash.feedback?.nodeId !== feedback.nodeId) return true;
+            if (flash.targetNodeId !== targetNodeId) return true;
             destroyFlash(flash);
             return false;
         });
@@ -112,16 +168,21 @@ export class CanvasConnectionCableScene {
             return branch;
         });
         const side = Math.abs(point.x - bounds.x) <= Math.abs(point.x - bounds.x - bounds.width) ? "left" : "right";
-        this.flashes.push({ point, bounds, side, feedback, color, startedAt: null, group, portEffect, branches });
-        this.draw(performance.now());
+        const flash: CableFlash = { targetNodeId, point, bounds, side, feedback, color, startedAt: null, group, portEffect, branches, offset: { x: 0, y: 0 }, finished: false };
+        this.flashes.push(flash);
+        this.publishFeedbackNodes();
+        return flash;
     }
 
     /** 真实拖动／新接线优先，先归还节点与 SVG 的临时几何再处理新的操作。 */
     cancelImpacts() {
-        if (!this.flashes.length) return;
+        if (!this.flashes.length && !this.releases.length) return;
         const flashes = this.flashes;
         this.flashes = [];
+        this.releases.forEach((release) => release.track.group.destroy());
+        this.releases = [];
         flashes.forEach(destroyFlash);
+        this.publishFeedbackNodes();
         this.draw(performance.now());
         this.render();
     }
@@ -132,8 +193,11 @@ export class CanvasConnectionCableScene {
         this.frame = null;
         for (const track of this.tracks.values()) track.group.destroy();
         this.tracks.clear();
+        this.releases.forEach((release) => release.track.group.destroy());
+        this.releases = [];
         this.flashes.forEach(destroyFlash);
         this.flashes = [];
+        this.publishFeedbackNodes();
         delete this.host.dataset.canvasCableCount;
         delete this.host.dataset.canvasCableAnimating;
     }
@@ -154,7 +218,43 @@ export class CanvasConnectionCableScene {
         group.add(plugs);
         const portEffect = new CanvasConnectionPortEffect(group);
         this.parent.add(group);
-        return { input, group, halo, body, highlight, plugs, portEffect, portStartedAt: null, portTargetKey: null, arcs, arcCores, motion: createCableMotion(input.start, input.end, this.scale, now) };
+        return { input, group, halo, body, highlight, plugs, portEffect, portStartedAt: null, portTargetKey: null, arcs, arcCores, motion: createCableMotion(input.start, input.end, this.scale, now), rendered: { start: input.start, end: input.end, controls: cableControls(input.start, input.end, this.scale) } };
+    }
+
+    private paintTrack(track: CableTrack, pathD: string, start: CablePoint, end: CablePoint, stroke: string, opacity = 1) {
+        const scale = this.scale;
+        track.group.opacity = opacity;
+        track.halo.set({ path: pathD, stroke, strokeWidth: cableStroke.halo / scale, opacity: 0.08 });
+        track.body.set({ path: pathD, stroke, strokeWidth: cableStroke.width / scale, opacity: 0.92 });
+        track.highlight.set({ path: pathD, stroke: "#ffffff", strokeWidth: cableStroke.highlight / scale, opacity: 0.38 });
+        track.plugs.set({ path: `M ${start.x} ${start.y} l 0 0 M ${end.x} ${end.y} l 0 0`, stroke, strokeWidth: cableStroke.endpoint / scale });
+    }
+
+    private paintPortFeedback(track: CableTrack, target: CanvasCableDraft["target"], tip: CablePoint, now: number, reducedMotion: boolean) {
+        const scale = this.scale;
+        const nearPort = Boolean(target && Math.hypot(tip.x - target.x, tip.y - target.y) * scale < 58);
+        track.arcs.forEach((arc) => { arc.visible = nearPort && !reducedMotion; });
+        track.arcCores.forEach((arc) => { arc.visible = nearPort && !reducedMotion; });
+        if (!nearPort || !target) {
+            track.portEffect.hide();
+            track.portStartedAt = null;
+            track.portTargetKey = null;
+            return false;
+        }
+        const pulse = reducedMotion ? 0.6 : 0.7 + Math.sin(now * 0.016) * 0.18;
+        const targetKey = `${target.x}:${target.y}:${target.nodeWidth}:${this.effectStyle}`;
+        if (track.portStartedAt === null || track.portTargetKey !== targetKey) {
+            track.portStartedAt = now;
+            track.portTargetKey = targetKey;
+        }
+        track.portEffect.draw({ point: target, nodeWidth: target.nodeWidth, side: track.input.freeEnd === "end" ? "left" : "right", color: track.input.color, dotColor: track.input.ink, style: this.effectStyle, elapsed: now - track.portStartedAt, success: false, reducedMotion });
+        if (reducedMotion) return false;
+        for (let index = 0; index < track.arcs.length; index += 1) {
+            const path = electricArc(tip, target, scale, now, index);
+            track.arcs[index].set({ path, stroke: track.input.color, strokeWidth: (index === 0 ? 2.2 : 1.4) / scale, opacity: (index === 0 ? 0.85 : 0.45) * pulse, shadow: { x: 0, y: 0, blur: 5 / scale, color: track.input.color } });
+            track.arcCores[index].set({ path, stroke: "#ffffff", strokeWidth: 0.7 / scale, opacity: (index === 0 ? 0.9 : 0.4) * pulse });
+        }
+        return true;
     }
 
     private draw = (now: number, animationFrame = false) => {
@@ -163,6 +263,7 @@ export class CanvasConnectionCableScene {
         if (animationFrame) this.frame = null;
         let animating = false;
         const hadImpacts = this.flashes.length > 0;
+        const hadReleases = this.releases.length > 0;
         const scale = this.scale;
         const reducedMotion = this.reducedMotion || Boolean(this.host.closest(".no-motion"));
         for (const track of this.tracks.values()) {
@@ -183,32 +284,24 @@ export class CanvasConnectionCableScene {
                 ? { pathD: cablePath(start, end, scale), moving: false }
                 : advanceCableMotion(track.motion, start, end, now, scale);
             animating ||= frame.moving;
-            const stroke = input.ink;
-            track.halo.set({ path: frame.pathD, stroke, strokeWidth: cableStroke.halo / scale, opacity: 0.08 });
-            track.body.set({ path: frame.pathD, stroke, strokeWidth: cableStroke.width / scale, opacity: 0.92 });
-            track.highlight.set({ path: frame.pathD, stroke: "#ffffff", strokeWidth: cableStroke.highlight / scale, opacity: 0.38 });
-            track.plugs.set({ path: `M ${start.x} ${start.y} l 0 0 M ${end.x} ${end.y} l 0 0`, stroke, strokeWidth: cableStroke.endpoint / scale });
-            track.arcs.forEach((arc) => { arc.visible = nearPort && !reducedMotion; });
-            track.arcCores.forEach((arc) => { arc.visible = nearPort && !reducedMotion; });
-            if (!nearPort || !input.target) {
-                track.portEffect.hide();
-                track.portStartedAt = null;
-                track.portTargetKey = null;
-                continue;
-            }
-            const pulse = reducedMotion ? 0.6 : 0.7 + Math.sin(now * 0.016) * 0.18;
-            const targetKey = `${input.target.x}:${input.target.y}:${input.target.nodeWidth}:${this.effectStyle}`;
-            if (track.portStartedAt === null || track.portTargetKey !== targetKey) {
-                track.portStartedAt = now;
-                track.portTargetKey = targetKey;
-            }
-            track.portEffect.draw({ point: input.target, nodeWidth: input.target.nodeWidth, side: input.freeEnd === "end" ? "left" : "right", color: input.color, dotColor: input.ink, style: this.effectStyle, elapsed: now - track.portStartedAt, success: false, reducedMotion });
+            track.rendered = {
+                start, end,
+                controls: reducedMotion ? cableControls(start, end, scale) : {
+                    control1: { x: track.motion.control1.x.value, y: track.motion.control1.y.value },
+                    control2: { x: track.motion.control2.x.value, y: track.motion.control2.y.value },
+                },
+            };
+            this.paintTrack(track, frame.pathD, start, end, input.ink);
+            animating = this.paintPortFeedback(track, input.target, tip, now, reducedMotion) || animating;
+        }
+        // 只在真实动画帧开始落框计时；同一批次的目标共用接触时刻与反馈会话。
+        for (const release of this.releases) {
+            const contact = release.contact;
             if (reducedMotion) continue;
-            animating = true;
-            for (let index = 0; index < track.arcs.length; index += 1) {
-                const path = electricArc(tip, input.target, scale, now, index);
-                track.arcs[index].set({ path, stroke: input.color, strokeWidth: (index === 0 ? 2.2 : 1.4) / scale, opacity: (index === 0 ? 0.85 : 0.45) * pulse, shadow: { x: 0, y: 0, blur: 5 / scale, color: input.color } });
-                track.arcCores[index].set({ path, stroke: "#ffffff", strokeWidth: 0.7 / scale, opacity: (index === 0 ? 0.9 : 0.4) * pulse });
+            if (contact.startedAt === null && animationFrame) contact.startedAt = now;
+            if (contact.startedAt !== null && contact.contactedAt === null && now - contact.startedAt >= releaseDuration) {
+                contact.contactedAt = now;
+                contact.flash = this.createFlash(contact.targetNodeId, contact.point, contact.color, contact.bounds, contact.prepareFeedback());
             }
         }
         this.flashes = this.flashes.filter((flash) => {
@@ -226,6 +319,7 @@ export class CanvasConnectionCableScene {
                 destroyFlash(flash);
                 return false;
             }
+            flash.offset = offset;
             flash.group.set({ x: offset.x, y: offset.y });
             // 靠近与成功共用所选接点材质；同一 elapsed 驱动，650ms 内完成扩散与淡出。
             flash.portEffect.draw({ point: flash.point, nodeWidth: flash.bounds.width, side: flash.side, color: flash.color, dotColor: flash.color, style: this.effectStyle, elapsed, success: true, reducedMotion });
@@ -253,8 +347,37 @@ export class CanvasConnectionCableScene {
             animating = true;
             return true;
         });
+        // 撞击先写 DOM/SVG 的同一 offset，随后再画释放线，避免线头落后节点一帧。
+        this.releases = this.releases.filter((release) => {
+            const { track, contact, geometry, point } = release;
+            const contactElapsed = contact.contactedAt === null ? 0 : now - contact.contactedAt;
+            if (reducedMotion || contact.flash?.finished || contactElapsed >= releaseHoldDuration + releaseFadeDuration) {
+                track.group.destroy();
+                return false;
+            }
+            const elapsed = contact.startedAt === null ? 0 : now - contact.startedAt;
+            const progress = easeIn(Math.min(1, elapsed / releaseDuration));
+            const landed = contact.contactedAt !== null;
+            const offset = landed && contact.flash ? contact.flash.offset : { x: 0, y: 0 };
+            const destination = { x: point.x + offset.x, y: point.y + offset.y };
+            const start = track.input.freeEnd === "start" ? lerpPoint(geometry.start, destination, progress) : geometry.start;
+            const end = track.input.freeEnd === "end" ? lerpPoint(geometry.end, destination, progress) : geometry.end;
+            // 正式 SVG 不使用拖线的 44 / scale 最小曲率；交接时必须取相同几何。
+            const finalControls = cableControls(start, end);
+            const controls = {
+                control1: lerpPoint(geometry.controls.control1, finalControls.control1, progress),
+                control2: lerpPoint(geometry.controls.control2, finalControls.control2, progress),
+            };
+            const fade = landed ? 1 - Math.max(0, contactElapsed - releaseHoldDuration) / releaseFadeDuration : 1;
+            this.paintTrack(track, cablePath(start, end, 1, controls), start, end, release.colorAt(progress), fade);
+            this.paintPortFeedback(track, landed ? undefined : { ...point, nodeWidth: contact.bounds.width }, track.input.freeEnd === "start" ? start : end, now, false);
+            animating = true;
+            return true;
+        });
+        this.publishFeedbackNodes();
         // Leafer 与 DOM/SVG 在本次绘制中一起提交，避免光波晚一帧才跟上节点。
-        if (hadImpacts) this.render();
+        if (hadImpacts || hadReleases) this.render();
+        this.host.dataset.canvasCableCount = String(this.tracks.size + this.releases.length);
         this.host.dataset.canvasCableAnimating = animating ? "true" : "false";
         if (animating && !reducedMotion) {
             // 与 sync/setScale 使用同一实际时刻；繁忙帧较早的 rAF 时间戳会跳过起势。
@@ -268,8 +391,13 @@ export class CanvasConnectionCableScene {
 }
 
 function destroyFlash(flash: CableFlash) {
+    flash.finished = true;
     flash.group.destroy();
     flash.feedback?.finish();
+}
+
+function lerpPoint(from: CablePoint, to: CablePoint, progress: number): CablePoint {
+    return { x: from.x + (to.x - from.x) * progress, y: from.y + (to.y - from.y) * progress };
 }
 
 /** 复用 Leafer 的径向渐变，透明外缘形成真实光照衰减，避免靠宽描边堆出色块。 */
