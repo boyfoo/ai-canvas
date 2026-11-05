@@ -40,6 +40,7 @@ type UseCanvasKeyboardOptions = {
     onOpenSearch: () => void;
     onToggleAssistant?: () => void;
     beginBatchConnection: () => void;
+    cancelActiveConnection: () => boolean;
 };
 
 type TextSelectionLike = {
@@ -88,6 +89,7 @@ export function useCanvasKeyboard({
     onOpenSearch,
     onToggleAssistant,
     beginBatchConnection,
+    cancelActiveConnection,
 }: UseCanvasKeyboardOptions) {
     useEffect(() => {
         if (!enabled) return;
@@ -100,6 +102,12 @@ export function useCanvasKeyboard({
             // Runtime guard complements the React `enabled` flag: the workbench
             // owns keyboard input whenever mounted, regardless of stale canvas selection.
             if (document.querySelector("[data-director-workbench='true']")) return;
+            // 接线的取消先于输入框／工具栏焦点保护，避免按钮 preventDefault 保留旧输入焦点。
+            if (event.key === "Escape" && cancelActiveConnection()) {
+                event.preventDefault();
+                event.stopPropagation();
+                return;
+            }
             const target = event.target instanceof Element ? event.target : null;
             if (target?.closest(".canvas-node-toolbar, .canvas-node-toolbar-menu")) return;
             const key = event.key.toLowerCase();
@@ -259,5 +267,5 @@ export function useCanvasKeyboard({
             window.removeEventListener("keydown", handleKeyDown, true);
             window.removeEventListener("paste", handlePaste, true);
         };
-    }, [pageUi, projectId, enabled, autoArrangeCanvasNodes, beginBatchConnection, cancelSelectionBox, copySelectedNodes, deleteConnection, deleteNodes, deselectCanvas, exitFocusMode, fitCanvasContent, fitCanvasSelection, focusMode, nodesRef, onOpenSearch, onToggleAssistant, pasteCopiedNodes, pasteSystemClipboard, redoCanvas, restoreCopiedNodesFromText, saveCanvasProject, selectedConnectionId, selectedNodeIdsRef, setAnnotationNodeId, setCropNodeId, setInfoNodeId, setMaskEditNodeId, setShortcutRequestNonce, shouldPreferCopiedNodes, toggleFocusMode, undoCanvas, zoomCanvasIn, zoomCanvasOut, zoomToActualSize]);
+    }, [pageUi, projectId, enabled, autoArrangeCanvasNodes, beginBatchConnection, cancelActiveConnection, cancelSelectionBox, copySelectedNodes, deleteConnection, deleteNodes, deselectCanvas, exitFocusMode, fitCanvasContent, fitCanvasSelection, focusMode, nodesRef, onOpenSearch, onToggleAssistant, pasteCopiedNodes, pasteSystemClipboard, redoCanvas, restoreCopiedNodesFromText, saveCanvasProject, selectedConnectionId, selectedNodeIdsRef, setAnnotationNodeId, setCropNodeId, setInfoNodeId, setMaskEditNodeId, setShortcutRequestNonce, shouldPreferCopiedNodes, toggleFocusMode, undoCanvas, zoomCanvasIn, zoomCanvasOut, zoomToActualSize]);
 }

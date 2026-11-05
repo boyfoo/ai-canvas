@@ -10,6 +10,7 @@ import { canvasNodeFailureView } from "@/lib/canvas/canvas-node-failure-view";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { canvasConnectionTilt } from "@/lib/canvas/canvas-connection-tilt";
+import { connectionHandleDiameter } from "@/lib/canvas/canvas-connection-cable";
 import { usesCanvasCustomNodeContent } from "@/lib/canvas/canvas-node-content-policy";
 import { storyboardMinNodeHeight } from "@/lib/canvas/canvas-storyboard-layout";
 import { useActiveTheme } from "@/stores/canvas/use-canvas-theme-store";
@@ -163,6 +164,7 @@ export const CanvasNode = React.memo(function CanvasNode({
     const hasAudioContent = data.type === CanvasNodeType.Audio && Boolean(data.metadata?.content || data.metadata?.storageKey);
     const isComposerNode = data.type === CanvasNodeType.Config;
     const isDirectorNode = data.type === CanvasNodeType.Director || Boolean(data.metadata?.directorSceneId);
+    const hasNodeFrame = !isComposerNode && !isDirectorNode && data.metadata?.fixture !== "libtv-readonly-dense";
     const isBatchRoot = data.type === CanvasNodeType.Image && Boolean(data.metadata?.isBatchRoot) && batchCount > 1;
     const isBatchChild = data.type === CanvasNodeType.Image && Boolean(data.metadata?.batchRootId);
     const hasVersionStack = historyCount > 0 && !data.metadata?.versionStackOwnerId;
@@ -307,9 +309,9 @@ export const CanvasNode = React.memo(function CanvasNode({
         if (next !== data.title) onTitleChange?.(data.id, next);
     };
 
-    const connectionTilt = isConnectionTarget && !reduceMediaEffects && !dragOffset
+    const connectionTilt = connectionActive && isConnectionTarget && !reduceMediaEffects && !dragOffset
         ? canvasConnectionTilt(data, connectionApproach) : undefined;
-    useCanvasConnectionFeedback(motionSurfaceRef, connectionTilt);
+    useCanvasConnectionFeedback(motionSurfaceRef, connectionTilt, connectionActive);
 
     return (
         <div
@@ -384,16 +386,21 @@ export const CanvasNode = React.memo(function CanvasNode({
                 /> : null}
                 <div
                     className="canvas-node-shell relative h-full w-full overflow-visible rounded-[var(--node-radius)]"
+                    data-canvas-live-scale={hasNodeFrame ? true : undefined}
+                    data-node-frame={hasNodeFrame ? "true" : undefined}
                     data-node-selected={isSelected ? "true" : "false"}
                     data-node-state={nodeState}
                     data-connection-receiving={isConnectionTarget && connectionApproach ? "true" : undefined}
                     data-state={data.metadata?.status || (isActive ? "active" : isRelated ? "related" : "idle")}
                     style={{
                         background: hasImageContent || hasVideoContent || isDirectorNode ? "transparent" : theme.node.fill,
-                        // 固定占位但不绘制描边，避免聚焦切换时边框宽度变化造成白边跳动。
-                        border: isComposerNode || isDirectorNode ? "0" : `1px solid ${isSelected || isFocusRelated || isConnectionTarget ? theme.node.activeStroke : "transparent"}`,
-                        boxShadow: isComposerNode || isDirectorNode ? "none" : isSelected || isFocusRelated || isConnectionTarget ? theme.node.hoverShadow : theme.node.shadow,
+                        // 仍占原来的 1px；普通节点的屏幕描边由透明窗口伪元素绘制，不改变媒体尺寸。
+                        border: isComposerNode || isDirectorNode ? "0" : `1px solid ${!hasNodeFrame && isActive ? theme.node.activeStroke : "transparent"}`,
+                        boxShadow: isComposerNode || isDirectorNode ? "none" : hasNodeFrame ? theme.node.shadow : isActive ? theme.node.hoverShadow : theme.node.shadow,
                         "--connection-target-stroke": theme.node.activeStroke,
+                        "--canvas-live-inverse-scale": 1 / Math.max(scale, 0.05),
+                        // live 属性不继承；在宿主解析为普通变量后再传给 ::after。
+                        "--canvas-node-frame-inverse-scale": "var(--canvas-live-inverse-scale)",
                     } as React.CSSProperties}
                     onMouseDown={(event) => onMouseDown(event, data.id)}
                     onDoubleClick={(event) => {
@@ -591,8 +598,8 @@ export const CanvasNode = React.memo(function CanvasNode({
                 </div>
             </div>
 
-            {!readOnly && data.type !== CanvasNodeType.Script && data.type !== CanvasNodeType.BatchTable && data.type !== CanvasNodeType.WorkflowControl ? <ConnectionSideRail side="left" scale={scale} theme={theme} visible={hovered || isSelected || forceInputVisible} hideGlyph={isConnectionTarget} onPointerDown={(event, anchorRatio) => onConnectStart(event, data.id, "target", undefined, anchorRatio)} /> : null}
-            {!readOnly && data.type !== CanvasNodeType.Script && data.type !== CanvasNodeType.Config && showOutputConnection ? <ConnectionSideRail side="right" scale={scale} theme={theme} visible={hovered || isSelected} hideGlyph={isConnectionTarget} onPointerDown={(event, anchorRatio) => onConnectStart(event, data.id, "source", undefined, anchorRatio)} /> : null}
+            {!readOnly && data.type !== CanvasNodeType.Script && data.type !== CanvasNodeType.BatchTable && data.type !== CanvasNodeType.WorkflowControl ? <ConnectionSideRail side="left" scale={scale} theme={theme} visible={hovered || isSelected || forceInputVisible} hideGlyph={connectionActive || isConnectionTarget} onPointerDown={(event, anchorRatio) => onConnectStart(event, data.id, "target", undefined, anchorRatio)} /> : null}
+            {!readOnly && data.type !== CanvasNodeType.Script && data.type !== CanvasNodeType.Config && showOutputConnection ? <ConnectionSideRail side="right" scale={scale} theme={theme} visible={hovered || isSelected} hideGlyph={connectionActive || isConnectionTarget} onPointerDown={(event, anchorRatio) => onConnectStart(event, data.id, "source", undefined, anchorRatio)} /> : null}
 
         </div>
     );
@@ -871,7 +878,7 @@ function ConnectionSideRail({ side, scale, theme, visible = false, hideGlyph = f
     const inverseScale = 1 / Math.max(scale, 0.05);
     // 使用画布逐帧更新的倍率，避免滚轮结束、React 提交倍率时才补偿尺寸而突然变大。
     const liveInverseScale = `var(--canvas-live-inverse-scale, ${inverseScale})`;
-    const handleScreenSize = 20;
+    const handleScreenSize = connectionHandleDiameter;
     // 点击区也固定为屏幕 44px，避免大倍率时鼠标跟随范围被画布成倍放大。
     const railSize = `calc(44px * ${liveInverseScale})`;
     const handleSize = "var(--canvas-connection-handle-size)";

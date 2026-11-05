@@ -786,9 +786,11 @@ function InfiniteCanvasPage() {
     });
     const {
         cancelPendingConnectionCreate,
+        cancelActiveConnection,
         closeConnectionCreateMenu,
         connectionTargetAnchorRatio,
         connectionTargetNodeId,
+        connectionTargetHandleId,
         connectionApproach,
         connectionReplaceHover,
         connectingParams,
@@ -1112,6 +1114,7 @@ function InfiniteCanvasPage() {
         toggleFocusMode,
         onOpenSearch: () => setNodeSearchOpen(true),
         beginBatchConnection: () => beginBatchConnectionMode(Array.from(selectedNodeIdsRef.current)),
+        cancelActiveConnection,
     });
     const pasteAtPosition = useCallback(
         (position: Position) => {
@@ -1475,9 +1478,11 @@ function InfiniteCanvasPage() {
                                             theme={theme}
                                             scriptScrollTopById={scriptScrollTopById}
                                             connectingParams={connectingParams}
+                                            connections={connections}
                                             batchConnectionPreview={batchConnectionPreview}
                                             mouseWorld={mouseWorld}
                                             connectionTargetNodeId={connectionTargetNodeId}
+                                            connectionTargetHandleId={connectionTargetHandleId}
                                             connectionTargetAnchorRatio={connectionTargetAnchorRatio}
                                             nodeById={nodeById}
                                             selectionBox={selectionBox}

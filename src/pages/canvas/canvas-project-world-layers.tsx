@@ -145,7 +145,7 @@ export const CanvasProjectWorldLayers = memo(function CanvasProjectWorldLayers(p
                 const movedFrom = canvasNodeDragGeometry(from, preview);
                 const movedTo = canvasNodeDragGeometry(to, preview);
                 const { pathD, startX, startY, endX, endY } = canvasConnectionPath(connection, movedFrom, movedTo, props.scriptScrollTopById[from.id] || 0, props.scriptScrollTopById[to.id] || 0);
-                group.querySelectorAll<SVGPathElement>("path[d]").forEach((path) => path.setAttribute("d", pathD));
+                group.querySelectorAll<SVGPathElement>("path[d]").forEach((path) => path.setAttribute("d", path.hasAttribute("data-canvas-cable-endpoints") ? `M ${startX} ${startY} l 0 0 M ${endX} ${endY} l 0 0` : pathD));
                 const endpoints = group.querySelectorAll<SVGCircleElement>("circle");
                 endpoints[0]?.setAttribute("cx", String(startX));
                 endpoints[0]?.setAttribute("cy", String(startY));
@@ -224,10 +224,11 @@ export const CanvasProjectWorldLayers = memo(function CanvasProjectWorldLayers(p
                 as 1 / zoom and makes WebKit allocate a huge empty surface. */}
             {props.displayConnections.length > 0 ? <svg
                 ref={connectionLayerRef}
+                data-canvas-live-scale
                 className="absolute overflow-visible"
                 width={1}
                 height={1}
-                style={{ left: 0, top: 0, pointerEvents: "none", zIndex: 0 }}
+                style={{ left: 0, top: 0, pointerEvents: "none", zIndex: 0, "--canvas-wire-inverse-scale": "var(--canvas-live-inverse-scale)" } as CSSProperties}
             >
                 {props.displayConnections.map(({ connection, from, to }) => (
                     <ConnectionPath

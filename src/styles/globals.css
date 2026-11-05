@@ -366,9 +366,6 @@
 
 /* infinite 装饰动画在 reduced-motion / no-motion 下降级（对应 #99 三级降级）*/
 @media (prefers-reduced-motion: reduce) {
-    .canvas-connection-flow,
-    .canvas-connection-comet,
-    .canvas-connection-draft,
     .canvas-task-progress-shimmer,
     .ai-title-aurora,
     .creation-intro-mark,
@@ -378,9 +375,6 @@
         animation-iteration-count: 1;
     }
 }
-.no-motion .canvas-connection-flow,
-.no-motion .canvas-connection-comet,
-.no-motion .canvas-connection-draft,
 .no-motion .canvas-task-progress-shimmer,
 .no-motion .ai-title-aurora,
 .no-motion .creation-intro-mark,
@@ -9483,6 +9477,65 @@ html:not(.dark) .creation-studio-control:hover,
         transition: transform 160ms ease-out;
     }
 
+    /* 普通卡片只在透明窗口边缘绘制材质，不给媒体加底色，也不改变原 1px 占位。
+       逆倍率先在 shell 解析再继承，避免注册为不继承的 live 属性在伪元素上回到 1。 */
+    .canvas-node-shell[data-node-frame="true"] {
+        --canvas-node-frame-rest: 14%;
+        --canvas-node-frame-hover: 20%;
+        --canvas-node-frame-selected: 34%;
+        --canvas-node-frame-receiving: 40%;
+        --canvas-node-frame-opacity: var(--canvas-node-frame-rest);
+    }
+
+    .dark .canvas-node-shell[data-node-frame="true"] {
+        --canvas-node-frame-rest: 9%;
+        --canvas-node-frame-hover: 16%;
+        --canvas-node-frame-selected: 30%;
+        --canvas-node-frame-receiving: 36%;
+    }
+
+    .canvas-node-shell[data-node-frame="true"]::after {
+        content: "";
+        position: absolute;
+        inset: -1px;
+        z-index: var(--node-z-overlay);
+        box-sizing: border-box;
+        border: 0;
+        border-radius: inherit;
+        background: transparent;
+        box-shadow:
+            inset 0 0 0 calc(1px * var(--canvas-node-frame-inverse-scale, 1)) color-mix(in srgb, var(--connection-target-stroke) var(--canvas-node-frame-opacity), transparent),
+            inset 0 calc(1px * var(--canvas-node-frame-inverse-scale, 1)) 0 rgb(255 255 255 / 6%),
+            0 calc(1px * var(--canvas-node-frame-inverse-scale, 1)) calc(3px * var(--canvas-node-frame-inverse-scale, 1)) rgb(0 0 0 / 12%);
+        pointer-events: none;
+        transition:
+            border-color var(--motion-state) var(--ease-aceternity),
+            box-shadow var(--motion-state) var(--ease-aceternity);
+    }
+
+    :where(.node-element[data-node-hovered="true"] > .canvas-node-motion-surface) > .canvas-node-shell[data-node-frame="true"] {
+        --canvas-node-frame-opacity: var(--canvas-node-frame-hover);
+    }
+
+    .canvas-node-shell[data-node-frame="true"]:is([data-node-selected="true"], [data-node-state="focus"], [data-node-state="target"]) {
+        --canvas-node-frame-opacity: var(--canvas-node-frame-selected);
+    }
+
+    .canvas-node-shell[data-node-frame="true"][data-connection-receiving="true"] {
+        --canvas-node-frame-opacity: var(--canvas-node-frame-receiving);
+    }
+
+    .canvas-node-shell[data-node-frame="true"][data-connection-receiving="true"]::after {
+        box-shadow:
+            inset 0 0 0 calc(1px * var(--canvas-node-frame-inverse-scale, 1)) color-mix(in srgb, var(--connection-target-stroke) var(--canvas-node-frame-opacity), transparent),
+            inset 0 calc(1px * var(--canvas-node-frame-inverse-scale, 1)) 0 rgb(255 255 255 / 8%),
+            0 0 calc(7px * var(--canvas-node-frame-inverse-scale, 1)) color-mix(in srgb, var(--connection-target-stroke) 10%, transparent);
+    }
+
+    [data-libtv-readonly-dense="true"] .canvas-node-shell[data-node-frame="true"]::after {
+        display: none;
+    }
+
     /* The editor surface replaces the inline text action while open. Keep the
        control out of hit-testing and the accessibility tree; opacity:0 still
        leaves an unclickable 放大编辑 in snapshots. */
@@ -9533,13 +9586,6 @@ html:not(.dark) .creation-studio-control:hover,
             border-top-color: transparent !important;
             color: transparent !important;
         }
-    }
-
-    /* 接收连线的边界不依赖选中/聚焦优先级；减少动态效果时仍保留可连接提示。 */
-    .canvas-node-shell[data-connection-receiving="true"] {
-        border-color: transparent !important;
-        outline: 2px solid var(--connection-target-stroke);
-        outline-offset: 0;
     }
 
     /* 只有当前目标与短暂回正阶段由 Motion 接管变换，不再叠加 CSS 过渡。 */
@@ -11585,10 +11631,6 @@ html:not(.dark) .creation-studio-control:hover,
         }
     }
 
-    [data-canvas-viewport-interacting="true"] :where(.canvas-connection-flow, .canvas-connection-comet, .canvas-connection-draft) {
-        animation: none !important;
-    }
-
     [data-canvas-viewport-interacting="true"] :where(.canvas-node-toolbar, [data-canvas-node-panel]) {
         will-change: transform;
     }
@@ -11646,20 +11688,6 @@ html:not(.dark) .creation-studio-control:hover,
         }
     }
 
-    .canvas-connection-flow {
-        animation: canvas-connection-flow 1.25s var(--motion-ease-linear) infinite;
-    }
-
-    /* 流光：一小段高亮沿连线跑。周期与上面的虚线流动刻意错开，两者同频会锁成
-       一条整体平移的虚线、看不出「有光在走」。只在悬停/选中态渲染（见 canvas-connections.tsx）。 */
-    .canvas-connection-comet {
-        animation: canvas-connection-comet 2.1s var(--motion-ease-linear) infinite;
-    }
-
-    .canvas-connection-draft {
-        animation: canvas-connection-flow 0.9s var(--motion-ease-linear) infinite;
-    }
-
     @keyframes canvas-panel-in {
         from {
             opacity: 0;
@@ -11679,19 +11707,6 @@ html:not(.dark) .creation-studio-control:hover,
 
     .canvas-node-panel-placement-change {
         animation: canvas-node-panel-placement-blur 180ms var(--motion-ease-out) both;
-    }
-
-    @keyframes canvas-connection-flow {
-        to {
-            stroke-dashoffset: -44;
-        }
-    }
-
-    /* 位移量必须等于 dasharray 之和（16 + 118），否则循环处会跳一下 */
-    @keyframes canvas-connection-comet {
-        to {
-            stroke-dashoffset: -134;
-        }
     }
 
 
@@ -11815,10 +11830,6 @@ html:not(.dark) .creation-studio-control:hover,
         transition-duration: 0.01ms !important;
     }
 
-    .canvas-connection-flow,
-    .canvas-connection-draft {
-        animation: none;
-    }
 }
 
 /* 章节编辑区用清晰边界区分工具栏与正文，同时保留连续写作空间。 */
@@ -11891,7 +11902,7 @@ html:not(.dark) .creation-studio-control:hover,
     mix-blend-mode: normal;
 }
 
-html[data-theme-switching="true"] :where(.canvas-node-shell, .aceternity-comet-card, .aceternity-floating-panel, .canvas-connection-flow, .canvas-connection-draft) {
+html[data-theme-switching="true"] :where(.canvas-node-shell, .aceternity-comet-card, .aceternity-floating-panel) {
     animation: none !important;
     transition: none !important;
 }

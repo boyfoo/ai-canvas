@@ -146,6 +146,7 @@ export function useCanvasConnectionController({
     const runtimeStatuses = usePluginStore((state) => state.runtimeStatuses);
     const [connectingParams, setConnectingParams] = useState<ConnectionHandle | null>(null);
     const [connectionTargetNodeId, setConnectionTargetNodeId] = useState<string | null>(null);
+    const [connectionTargetHandleId, setConnectionTargetHandleId] = useState<string | undefined>();
     const [connectionApproach, setConnectionApproach] = useState<CanvasConnectionApproach>(null);
     const [connectionTargetAnchorRatio, setConnectionTargetAnchorRatio] = useState<number | undefined>();
     const [connectionReplaceHover, setConnectionReplaceHover] = useState<ConnectionReplaceHover | null>(null);
@@ -221,6 +222,7 @@ export function useCanvasConnectionController({
             connectingPointerIdRef.current = null;
             connectingPointerStartRef.current = null;
             setConnectionTargetNodeId(null);
+            setConnectionTargetHandleId(undefined);
             setConnectionTargetAnchorRatio(undefined);
         }
     }, [updateConnectionReplaceHover]);
@@ -235,6 +237,13 @@ export function useCanvasConnectionController({
         setConnecting(null);
         clearBatchConnection();
     }, [clearBatchConnection, closeConnectionCreateMenu, setConnecting]);
+
+    /** Esc 优先取消本次接线，释放捕获后松手不能再提交或退出专注模式。 */
+    const cancelActiveConnection = useCallback(() => {
+        if (!connectingParamsRef.current && !batchConnectionPreviewRef.current && !pendingConnectionCreateRef.current) return false;
+        cancelPendingConnectionCreate();
+        return true;
+    }, [cancelPendingConnectionCreate]);
 
     const previewBatchConnection = useCallback((sourceNodeIds: string[], targetNodeId: string | null, targetHandleId: string | undefined, targetAnchorRatio: number | undefined, mouseWorld: Position) => {
         const plan = targetNodeId
@@ -713,6 +722,11 @@ export function useCanvasConnectionController({
         } else {
             const position = screenToCanvas(clientX, clientY);
             setMouseWorld(position);
+            // 创建菜单等待期间保留悬空线，不能沿用上一帧已吸附的目标端口。
+            setConnectionTargetNodeId(null);
+            setConnectionTargetHandleId(undefined);
+            setConnectionTargetAnchorRatio(undefined);
+            setConnectionApproach(null);
             const pending = { connection: currentConnection, position };
             pendingConnectionCreateRef.current = pending;
             setPendingConnectionCreate(pending);
@@ -749,6 +763,7 @@ export function useCanvasConnectionController({
         setMouseWorld(screenToCanvas(event.clientX, event.clientY));
         setConnecting({ nodeId, handleType, handleId, anchorRatio });
         setConnectionTargetNodeId(null);
+        setConnectionTargetHandleId(undefined);
         setConnectionTargetAnchorRatio(undefined);
         pageUi.getState().setSelectedConnectionId(null);
     }, [pageUi, projectId, clearBatchConnection, closeConnectionCreateMenu, commitBatchConnection, connectNodes, screenToCanvas, setConnecting]);
@@ -815,6 +830,7 @@ export function useCanvasConnectionController({
             const point = screenToCanvas(event.clientX, event.clientY);
             setConnectionApproach((previous) => latchCanvasConnectionApproach(previous, dropTarget.nodeId, point));
             setConnectionTargetNodeId(dropTarget.nodeId);
+            setConnectionTargetHandleId(dropTarget.handleId);
             setConnectionTargetAnchorRatio(dropTarget.anchorRatio);
             setMouseWorld(point);
         };
@@ -894,9 +910,11 @@ export function useCanvasConnectionController({
     }, [clearBatchConnection, commitBatchConnection, finishBatchConnection, finishConnection, getBatchConnectionDropTarget, getConnectionDropTarget, openBatchConnectionCreateMenu, previewBatchConnection, screenToCanvas, setConnecting]);
 
     return {
+        cancelActiveConnection,
         cancelPendingConnectionCreate,
         closeConnectionCreateMenu,
         connectionTargetNodeId,
+        connectionTargetHandleId,
         connectionApproach,
         connectionTargetAnchorRatio,
         connectionReplaceHover,
