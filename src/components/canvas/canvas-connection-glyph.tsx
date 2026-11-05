@@ -1,15 +1,16 @@
 import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 
+import type { CanvasTheme } from "@/lib/canvas-theme";
 import { connectionHandleDiameter } from "@/lib/canvas/canvas-connection-cable";
 import { subscribeCanvasGraphicsViewportPreview, subscribeCanvasNodeDragPreview } from "@/lib/canvas/canvas-live-viewport";
 
 /** 仅绘制连接圆钮；命中区域及连线事件继续由节点内的按钮负责。 */
-export function CanvasConnectionGlyph({ anchorRef, side, color, background }: {
+export function CanvasConnectionGlyph({ anchorRef, side, theme, active }: {
     anchorRef: RefObject<HTMLSpanElement | null>;
     side: "left" | "right";
-    color: string;
-    background: string;
+    theme: CanvasTheme;
+    active: boolean;
 }) {
     const glyphRef = useRef<HTMLSpanElement>(null);
     const [container, setContainer] = useState<HTMLDivElement | null>(null);
@@ -71,10 +72,10 @@ export function CanvasConnectionGlyph({ anchorRef, side, color, background }: {
                 width: connectionHandleDiameter,
                 height: connectionHandleDiameter,
                 visibility: "hidden",
-                border: "1px solid currentColor",
-                background,
-                color,
-                transition: "color 120ms ease-out",
+                border: `1px solid ${active ? "transparent" : theme.toolbar.border}`,
+                background: active ? theme.node.activeStroke : `color-mix(in srgb, ${theme.node.fill} 70%, transparent)`,
+                color: active ? theme.accent.onPrimary : theme.node.text,
+                transition: "color 120ms ease-out, background-color 120ms ease-out, border-color 120ms ease-out",
             }}
         >
             {/* 按真实容器中心定位，不用固定偏移抵消边框；浏览器缩放会量化边框宽度。 */}

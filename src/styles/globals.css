@@ -178,6 +178,8 @@
     --elevation-card: 0 1px 2px rgba(0, 0, 0, 0.05);
     --elevation-card-hover: 0 10px 26px rgba(0, 0, 0, 0.1), 0 2px 5px rgba(0, 0, 0, 0.05);
     --elevation-overlay: 0 24px 60px rgba(0, 0, 0, 0.2), 0 3px 10px rgba(0, 0, 0, 0.09);
+    --canvas-overlay-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+    --canvas-node-frame-selected: 20%;
     --elevation-panel: -18px 0 52px rgba(0, 0, 0, 0.16);
     --focus-ring-soft: 0 0 0 3px color-mix(in srgb, var(--ring) 28%, transparent);
 
@@ -915,6 +917,8 @@
     --elevation-card: 0 1px 2px rgba(0, 0, 0, 0.4);
     --elevation-card-hover: 0 12px 30px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.32);
     --elevation-overlay: 0 28px 72px rgba(0, 0, 0, 0.62), 0 4px 14px rgba(0, 0, 0, 0.4);
+    --canvas-overlay-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+    --canvas-node-frame-selected: 16%;
     --elevation-panel: -20px 0 60px rgba(0, 0, 0, 0.56);
 
     --surface-card: rgba(255, 255, 255, 0.035);
@@ -1883,7 +1887,7 @@
         border-radius: 8px;
         background: var(--dock-surface);
         padding: 2px 6px;
-        box-shadow: var(--elevation-overlay);
+        box-shadow: var(--canvas-overlay-shadow);
         backdrop-filter: blur(var(--dock-blur)) saturate(var(--glass-saturate));
     }
 
@@ -7395,10 +7399,15 @@ html:not(.dark) .creation-studio-control:hover,
     }
 
     .canvas-node-toolbar-menu {
-        border: 1px solid var(--cn-spatial-toolbar-border);
+        border: 1px solid color-mix(in srgb, var(--foreground) 6%, transparent);
         border-radius: var(--r-md);
-        box-shadow: var(--elevation-overlay);
+        box-shadow: var(--canvas-overlay-shadow) !important;
         overflow: hidden;
+    }
+
+    .canvas-node-toolbar-menu .ant-dropdown-menu {
+        border: 0;
+        box-shadow: none !important;
     }
 
     :where(.ant-input, .ant-input-affix-wrapper, .ant-input-number, .ant-select-content) {
@@ -8088,19 +8097,20 @@ html:not(.dark) .creation-studio-control:hover,
         border: 0 !important;
         border-radius: 10px !important;
         background: var(--workspace-surface-strong) !important;
-        box-shadow: 0 14px 38px rgba(0, 0, 0, 0.22) !important;
+        box-shadow: var(--canvas-overlay-shadow) !important;
         overflow: hidden;
         padding: 0 !important;
         backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
         -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
     }
 
-    .dark .canvas-composer-popover-surface {
-        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.34) !important;
-    }
-
     .canvas-composer-popover-content {
         padding: 0 !important;
+    }
+
+    /* 模型菜单同时复用创作页材质类；画布内的阴影由画布 token 统一管理。 */
+    .canvas-model-picker-popover .canvas-composer-popover-surface.creation-model-picker-surface {
+        box-shadow: var(--canvas-overlay-shadow) !important;
     }
 
 .canvas-model-picker-menu {
@@ -8302,11 +8312,6 @@ html:not(.dark) .creation-studio-control:hover,
 
     html:not(.dark) body.app-spatial-overlays .canvas-composer-popover-surface {
         background: #ffffff !important;
-        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.13) !important;
-    }
-
-    .dark body.app-spatial-overlays .canvas-composer-popover-surface {
-        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3) !important;
     }
 
     .agent-text-model-select .ant-select-content {
@@ -8371,6 +8376,8 @@ html:not(.dark) .creation-studio-control:hover,
 
     /* H3 选项会 portal 到 body，必须高于承载控件的设置面板。 */
     .canvas-h3-option-popup {
+        border-color: color-mix(in srgb, var(--foreground) 6%, transparent);
+        box-shadow: var(--canvas-overlay-shadow) !important;
         z-index: calc(var(--z-dialog-popover) + 1) !important;
     }
 
@@ -8473,22 +8480,14 @@ html:not(.dark) .creation-studio-control:hover,
     }
 
     .canvas-floating-dock {
-        border: 1px solid color-mix(in srgb, var(--foreground) 9%, transparent) !important;
+        border: 1px solid color-mix(in srgb, var(--foreground) 6%, transparent) !important;
         max-width: calc(100vw - 24px);
         scrollbar-width: none;
-        box-shadow:
-            0 1px 2px rgba(15, 23, 42, 0.06),
-            0 10px 26px rgba(15, 23, 42, 0.08);
+        box-shadow: var(--canvas-overlay-shadow);
     }
 
     .canvas-floating-dock::-webkit-scrollbar {
         display: none;
-    }
-
-    .dark .canvas-floating-dock {
-        box-shadow:
-            0 1px 1px rgba(0, 0, 0, 0.28),
-            0 12px 28px rgba(0, 0, 0, 0.3);
     }
 
     /* LibTV 的画布浮层表面比工作区底色略亮，保持顶栏与主 Dock 的
@@ -8496,7 +8495,6 @@ html:not(.dark) .creation-studio-control:hover,
     .dark .canvas-topbar-cluster,
     .dark .libtv-main-dock {
         background: rgb(34 34 34) !important;
-        border-color: rgb(54 54 54) !important;
     }
 
     .dark .libtv-main-dock {
@@ -8509,11 +8507,11 @@ html:not(.dark) .creation-studio-control:hover,
         height: 44px !important;
         gap: 2px !important;
         padding: 4px !important;
-        border: 1px solid var(--border) !important;
+        border: 1px solid color-mix(in srgb, var(--foreground) 6%, transparent) !important;
         border-radius: 15px !important;
         background: var(--popover) !important;
         color: var(--popover-foreground) !important;
-        box-shadow: 0 14px 38px rgba(0, 0, 0, 0.34), inset 0 1px rgba(255, 255, 255, 0.04) !important;
+        box-shadow: var(--canvas-overlay-shadow) !important;
     }
 
     .libtv-main-dock .aceternity-dock-command {
@@ -8544,7 +8542,11 @@ html:not(.dark) .creation-studio-control:hover,
     .libtv-main-dock .aceternity-dock-separator {
         height: 20px !important;
         margin-inline: 3px !important;
-        background: rgb(75 75 75);
+        background: color-mix(in srgb, var(--foreground) 8%, transparent);
+    }
+
+    .canvas-create-menu-surface {
+        box-shadow: var(--canvas-overlay-shadow);
     }
 
     .canvas-mode-menu {
@@ -9480,17 +9482,17 @@ html:not(.dark) .creation-studio-control:hover,
     /* 普通卡片只在透明窗口边缘绘制材质，不给媒体加底色，也不改变原 1px 占位。
        逆倍率先在 shell 解析再继承，避免注册为不继承的 live 属性在伪元素上回到 1。 */
     .canvas-node-shell[data-node-frame="true"] {
-        --canvas-node-frame-rest: 14%;
-        --canvas-node-frame-hover: 20%;
-        --canvas-node-frame-selected: 34%;
+        --canvas-node-frame-rest: 8%;
+        --canvas-node-frame-hover: 14%;
+        --canvas-node-frame-focus: 34%;
         --canvas-node-frame-receiving: 40%;
         --canvas-node-frame-opacity: var(--canvas-node-frame-rest);
     }
 
     .dark .canvas-node-shell[data-node-frame="true"] {
-        --canvas-node-frame-rest: 9%;
-        --canvas-node-frame-hover: 16%;
-        --canvas-node-frame-selected: 30%;
+        --canvas-node-frame-rest: 4%;
+        --canvas-node-frame-hover: 8%;
+        --canvas-node-frame-focus: 30%;
         --canvas-node-frame-receiving: 36%;
     }
 
@@ -9503,10 +9505,7 @@ html:not(.dark) .creation-studio-control:hover,
         border: 0;
         border-radius: inherit;
         background: transparent;
-        box-shadow:
-            inset 0 0 0 calc(1px * var(--canvas-node-frame-inverse-scale, 1)) color-mix(in srgb, var(--connection-target-stroke) var(--canvas-node-frame-opacity), transparent),
-            inset 0 calc(1px * var(--canvas-node-frame-inverse-scale, 1)) 0 rgb(255 255 255 / 6%),
-            0 calc(1px * var(--canvas-node-frame-inverse-scale, 1)) calc(3px * var(--canvas-node-frame-inverse-scale, 1)) rgb(0 0 0 / 12%);
+        box-shadow: inset 0 0 0 calc(1px * var(--canvas-node-frame-inverse-scale, 1)) color-mix(in srgb, var(--connection-target-stroke) var(--canvas-node-frame-opacity), transparent);
         pointer-events: none;
         transition:
             border-color var(--motion-state) var(--ease-aceternity),
@@ -9517,8 +9516,14 @@ html:not(.dark) .creation-studio-control:hover,
         --canvas-node-frame-opacity: var(--canvas-node-frame-hover);
     }
 
-    .canvas-node-shell[data-node-frame="true"]:is([data-node-selected="true"], [data-node-state="focus"], [data-node-state="target"]) {
+    .canvas-node-shell[data-node-frame="true"][data-node-selected="true"] {
         --canvas-node-frame-opacity: var(--canvas-node-frame-selected);
+    }
+
+    /* 单选节点也会被标记为 focus；已选中时使用统一的轻量选中强度。 */
+    .canvas-node-shell[data-node-frame="true"][data-node-state="focus"]:not([data-node-selected="true"]),
+    .canvas-node-shell[data-node-frame="true"][data-node-state="target"] {
+        --canvas-node-frame-opacity: var(--canvas-node-frame-focus);
     }
 
     .canvas-node-shell[data-node-frame="true"][data-connection-receiving="true"] {
@@ -10935,7 +10940,7 @@ html:not(.dark) .creation-studio-control:hover,
         overflow: visible;
         border-radius: var(--r-md);
         background: var(--canvas-composer-control-surface);
-        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--foreground) 10%, transparent);
+        box-shadow: none;
     }
 
     .canvas-node-reference-chip[data-connection-hover-replace="true"] {
@@ -10957,7 +10962,6 @@ html:not(.dark) .creation-studio-control:hover,
         flex: 0 0 18px;
         place-items: center;
         border: 0;
-        border-right: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
         border-radius: var(--r-md) 0 0 var(--r-md);
         background: transparent;
         padding: 0;
@@ -11117,18 +11121,18 @@ html:not(.dark) .creation-studio-control:hover,
     .canvas-reference-tools-popover {
         width: 280px !important;
         max-width: calc(100vw - 24px) !important;
+        filter: none !important;
     }
 
     .canvas-reference-tools-popover .ant-popover-content,
-    .canvas-reference-tools-popover .ant-popover-inner,
-    .canvas-reference-tools-popover .ant-popover-inner-content {
+    .canvas-reference-tools-popover .ant-popover-container {
         box-sizing: border-box;
         width: 100% !important;
         max-width: calc(100vw - 24px);
     }
 
-    .canvas-reference-tools-popover .ant-popover-inner-content {
-        padding: 0 !important;
+    .canvas-reference-tools-popover .ant-popover-container {
+        box-shadow: var(--canvas-overlay-shadow) !important;
     }
 
     .canvas-node-composer-submit {

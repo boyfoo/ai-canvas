@@ -14,6 +14,8 @@ type CanvasLodLayerProps = {
     viewport: ViewportTransform;
     /** Every displayed regular node; interactive ones are also mounted as DOM cards on top. */
     nodes: CanvasNodeData[];
+    /** Nodes currently mounted as DOM cards; they own their selection feedback. */
+    domNodes: CanvasNodeData[];
     nodeStackOrder: CanvasNodeStackOrder;
     selectedNodeIds: ReadonlySet<string>;
     theme: CanvasTheme;
@@ -37,11 +39,15 @@ export function CanvasLodLayer(props: CanvasLodLayerProps) {
     propsRef.current = props;
     const viewportRef = useRef(props.viewport);
     const dragRef = useRef<CanvasLodDragOffset>(null);
-    const sizeRef = useRef({ width: 0, height: 0, dpr: 1, left: 0, top: 0, nodeRadius: 0 });
+    const sizeRef = useRef({ width: 0, height: 0, dpr: 1, left: 0, top: 0, nodeRadius: 0, selectionOpacity: 0 });
     const frameRef = useRef<number | null>(null);
     const hoverRef = useRef<string | null>(null);
     // Child layout effects run before the viewport's own ref is attached.
     const resolveContainer = useCallback(() => props.containerRef.current || canvasRef.current?.closest<HTMLDivElement>("[data-canvas-viewport]") || null, [props.containerRef]);
+
+    const domNodeIds = useMemo(() => new Set(props.domNodes.map((node) => node.id)), [props.domNodes]);
+    const domNodeIdsRef = useRef(domNodeIds);
+    domNodeIdsRef.current = domNodeIds;
 
     const orderedNodes = useMemo(() => {
         const sorted = sortCanvasNodesByStackOrder(props.nodes, props.nodeStackOrder);
@@ -59,7 +65,7 @@ export function CanvasLodLayer(props: CanvasLodLayerProps) {
         context.setTransform(1, 0, 0, 1, 0, 0);
         context.clearRect(0, 0, canvas.width, canvas.height);
         const { active, theme, selectedNodeIds } = propsRef.current;
-        const { width, height, dpr, nodeRadius } = sizeRef.current;
+        const { width, height, dpr, nodeRadius, selectionOpacity } = sizeRef.current;
         if (!active || !width || !height) return;
         const viewport = viewportRef.current;
         const k = viewport.k;
@@ -112,15 +118,18 @@ export function CanvasLodLayer(props: CanvasLodLayerProps) {
                 fillBox(context, box, radius);
                 drawTextHint(context, box, k, theme.node.faint);
             }
+            if (selectedNodeIds.has(node.id) && !domNodeIdsRef.current.has(node.id)) {
+                context.save();
+                context.globalAlpha = selectionOpacity;
+                context.strokeStyle = theme.node.activeStroke;
+                context.lineWidth = pixel;
+                strokeBox(context, { x: x + pixel / 2, y: y + pixel / 2, width: Math.max(0, w - pixel), height: Math.max(0, h - pixel) }, Math.max(0, radius - pixel / 2));
+                context.restore();
+            }
             if (node.metadata?.status === "error") {
                 context.strokeStyle = theme.accent.danger;
                 context.lineWidth = 2 * pixel;
                 strokeBox(context, box, radius);
-            }
-            if (selectedNodeIds.has(node.id)) {
-                context.strokeStyle = theme.node.activeStroke;
-                context.lineWidth = 2 * pixel;
-                strokeBox(context, { x: x - 2 * pixel, y: y - 2 * pixel, width: w + 4 * pixel, height: h + 4 * pixel }, radius);
             }
         }
     }, []);
@@ -149,8 +158,10 @@ export function CanvasLodLayer(props: CanvasLodLayerProps) {
             const rect = container.getBoundingClientRect();
             const dpr = window.devicePixelRatio || 1;
             const active = propsRef.current.active;
-            const nodeRadius = Number.parseFloat(getComputedStyle(canvas).getPropertyValue("--node-radius"));
-            sizeRef.current = { width: rect.width, height: rect.height, dpr, left: rect.left, top: rect.top, nodeRadius };
+            const canvasStyle = getComputedStyle(canvas);
+            const nodeRadius = Number.parseFloat(canvasStyle.getPropertyValue("--node-radius"));
+            const selectionOpacity = Number.parseFloat(canvasStyle.getPropertyValue("--canvas-node-frame-selected")) / 100;
+            sizeRef.current = { width: rect.width, height: rect.height, dpr, left: rect.left, top: rect.top, nodeRadius, selectionOpacity };
             // Inactive overview keeps no GPU backing store.
             const pixelWidth = active ? Math.max(1, Math.round(rect.width * dpr)) : 0;
             const pixelHeight = active ? Math.max(1, Math.round(rect.height * dpr)) : 0;
@@ -166,11 +177,11 @@ export function CanvasLodLayer(props: CanvasLodLayerProps) {
             observer.disconnect();
             window.removeEventListener("resize", resize);
         };
-    }, [draw, props.active, resolveContainer]);
+    }, [draw, props.active, props.theme, resolveContainer]);
 
     useLayoutEffect(() => {
         draw();
-    }, [draw, orderedNodes, props.active, props.selectedNodeIds, props.theme]);
+    }, [domNodeIds, draw, orderedNodes, props.active, props.selectedNodeIds, props.theme]);
 
     useLayoutEffect(() => {
         const container = resolveContainer();

@@ -968,8 +968,8 @@ function ConnectionSideRail({ side, scale, theme, visible = false, hideGlyph = f
                 <CanvasConnectionGlyph
                     anchorRef={handleRef}
                     side={side}
-                    color={railHovered ? theme.node.activeStroke : `color-mix(in srgb, ${theme.node.activeStroke} 45%, transparent)`}
-                    background={theme.spatial.elevated}
+                    theme={theme}
+                    active={railHovered}
                 />
             ) : null}
         </button>

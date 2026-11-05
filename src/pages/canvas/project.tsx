@@ -1456,6 +1456,7 @@ function InfiniteCanvasPage() {
                                             interactive={!versions.preview && !readOnly}
                                             viewport={viewport}
                                             nodes={lodNodes}
+                                            domNodes={visibleNodes}
                                             nodeStackOrder={nodeStackOrder}
                                             selectedNodeIds={selectedNodeIds}
                                             theme={theme}

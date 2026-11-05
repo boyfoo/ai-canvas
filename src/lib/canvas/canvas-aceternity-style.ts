@@ -7,7 +7,7 @@ export function canvasDockStyle(theme: CanvasTheme, color: string = theme.toolba
         background: "var(--dock-surface)",
         borderColor: "var(--dock-border)",
         color,
-        boxShadow: "var(--elevation-overlay)",
+        boxShadow: "var(--canvas-overlay-shadow)",
         "--dock-command-bg": theme.spatial.surface,
         "--dock-command-hover": theme.toolbar.itemHover,
         "--dock-command-active": theme.toolbar.activeBg,

@@ -185,11 +185,10 @@ export function CanvasNodeContextMenu({
                     "aceternity-floating-panel fixed z-[var(--z-popover)] flex w-[224px] max-h-[calc(100vh-84px)] origin-top-left flex-col overflow-hidden rounded-xl border p-1.5 backdrop-blur-2xl",
                     menu.type === "canvas" && addOpen && "pointer-events-none invisible",
                 )}
-                style={{ left: position.left, top: position.top, background: theme.spatial.elevated, borderColor: theme.toolbar.border, color: theme.node.text }}
+                style={{ left: position.left, top: position.top, background: theme.spatial.elevated, borderColor: theme.toolbar.border, boxShadow: "var(--canvas-overlay-shadow)", color: theme.node.text }}
                 onContextMenu={(event) => event.preventDefault()}
                 onPointerDown={(event) => event.stopPropagation()}
             >
-                <div className="absolute inset-x-8 top-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${theme.toolbar.border}, transparent)` }} />
                 <div className="thin-scrollbar min-h-0 overflow-y-auto">
                     {menu.type === "node" && isMedia && categoryOpen ? (
                         <>
@@ -385,7 +384,7 @@ function AddNodeContextMenu({
             exit={{ opacity: 0 }}
             transition={{ duration: aceternityMotion.duration.instant, ease: aceternityMotion.easing.enter }}
             className="canvas-create-menu-surface aceternity-floating-panel fixed z-[var(--z-popover)] w-[232px] origin-top overflow-hidden rounded-xl border p-2 backdrop-blur-2xl"
-            style={{ left: getListMenuLeft(parentPosition.left), top: getListMenuTop(parentPosition.top), background: theme.spatial.elevated, borderColor: theme.toolbar.border, color: theme.node.text }}
+            style={{ left: getListMenuLeft(parentPosition.left), top: getListMenuTop(parentPosition.top), background: theme.spatial.elevated, borderColor: theme.toolbar.border, boxShadow: "var(--canvas-overlay-shadow)", color: theme.node.text }}
             onContextMenu={(event) => event.preventDefault()}
             onPointerDown={(event) => event.stopPropagation()}
         >
@@ -447,14 +446,14 @@ function MenuButton({
     return (
         <button
             type="button"
-            className="canvas-menu-item group flex min-h-9 w-full items-center gap-2 rounded-lg border border-transparent px-1.5 py-1 text-left outline-none enabled:hover:border-black/10 enabled:hover:bg-black/5 focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-35 dark:enabled:hover:border-white/10 dark:enabled:hover:bg-white/8"
+            className="canvas-menu-item group flex min-h-9 w-full items-center gap-2 rounded-lg border border-transparent px-1.5 py-1 text-left outline-none enabled:hover:bg-black/5 focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-35 dark:enabled:hover:bg-white/8"
             style={{ color, background: active ? theme.toolbar.activeBg : undefined, "--tw-ring-color": theme.node.muted } as CSSProperties}
             disabled={disabled}
             onClick={onClick}
         >
             <span
                 className="canvas-menu-item-icon grid size-7 shrink-0 place-items-center rounded-md border opacity-75 group-hover:opacity-100 [&_svg]:size-3.5"
-                style={{ background: danger ? `${theme.accent.danger}12` : theme.spatial.surface, borderColor: danger ? `${theme.accent.danger}33` : theme.toolbar.border, color: danger ? theme.accent.danger : theme.node.text }}
+                style={{ background: danger ? `${theme.accent.danger}12` : theme.spatial.surface, borderColor: danger ? `${theme.accent.danger}33` : "transparent", color: danger ? theme.accent.danger : theme.node.text }}
             >
                 {icon}
             </span>
@@ -462,7 +461,7 @@ function MenuButton({
                 <span className="flex items-center gap-1 text-xs font-medium">
                     <span className="truncate">{label}</span>
                     {badge ? (
-                        <span className="rounded-full border px-1 py-0.5 text-[var(--fs-nano)] font-bold" style={{ background: theme.toolbar.activeBg, borderColor: theme.toolbar.border, color: theme.node.muted }}>
+                        <span className="rounded-full border border-transparent px-1 py-0.5 text-[var(--fs-nano)] font-bold" style={{ background: theme.toolbar.activeBg, color: theme.node.muted }}>
                             {badge}
                         </span>
                     ) : null}
@@ -481,7 +480,7 @@ function MenuButton({
 
 function MenuDivider() {
     const theme = canvasThemes[useActiveTheme()];
-    return <div className="mx-1.5 my-1 h-px" style={{ background: `linear-gradient(90deg, transparent, ${theme.toolbar.border}, transparent)` }} />;
+    return <div className="mx-1.5 my-1 h-px opacity-50" style={{ background: `linear-gradient(90deg, transparent, ${theme.toolbar.border}, transparent)` }} />;
 }
 
 function getContextMenuPosition(menu: ContextMenuState, hasMultiSelection = false) {

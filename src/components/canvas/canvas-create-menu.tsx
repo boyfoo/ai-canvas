@@ -42,7 +42,7 @@ export function CanvasCreateMenu({ commands, layout = "grid", title = "添加节
 
     return (
         <div>
-            <header className="flex min-h-7 items-center justify-between gap-2 border-b pb-2" style={{ borderColor: theme.toolbar.border }}>
+            <header className="flex min-h-7 items-center justify-between gap-2 border-b pb-2" style={{ borderColor: `color-mix(in srgb, ${theme.toolbar.border} 50%, transparent)` }}>
                 <h2 className="font-semibold leading-none" style={{ fontSize: "var(--fs-caption)" }}>{title}</h2>
                 {layout !== "list" && projectCommands.map((command) => (
                     <button
@@ -121,7 +121,7 @@ function CanvasCreateCommandList({ commands }: { commands: CanvasCreateCommand[]
                         aria-disabled={Boolean(command.disabledReason)}
                         aria-description={command.disabledReason}
                         className={cn("group flex min-h-8 w-full items-center gap-2 rounded-md px-1.5 text-left outline-none transition-colors focus-visible:ring-2", command.disabledReason ? "cursor-not-allowed opacity-40 grayscale" : "hover:bg-white/[.08]")}
-                        style={{ color: theme.node.text, "--tw-ring-color": theme.toolbar.border } as CSSProperties}
+                        style={{ color: theme.node.text, "--tw-ring-color": theme.node.muted } as CSSProperties}
                         title={command.disabledReason ? `${command.label}：${command.disabledReason}` : command.label}
                         onMouseDown={(event) => event.stopPropagation()}
                         onClick={() => { if (!command.disabledReason) command.onClick(); }}
@@ -153,15 +153,15 @@ function CanvasCreateCommandGrid({ commands, variant }: { commands: CanvasCreate
                     whileTap={reducedMotion ? undefined : { scale: 0.98 }}
                     transition={aceternityMotion.spring.dock}
                     className={cn(
-                        "group min-w-0 overflow-hidden border border-black/10 bg-white/70 outline-none transition-colors focus-visible:ring-2 dark:border-white/10 dark:bg-white/[.04]",
-                        command.disabledReason ? "cursor-not-allowed opacity-40 grayscale" : "hover:border-black/20 hover:bg-black/5 dark:hover:border-white/20 dark:hover:bg-white/8",
+                        "group min-w-0 overflow-hidden border border-transparent bg-white/70 outline-none transition-colors focus-visible:ring-2 dark:bg-white/[.04]",
+                        command.disabledReason ? "cursor-not-allowed opacity-40 grayscale" : "hover:bg-black/5 dark:hover:bg-white/8",
                         variant === "node"
                             ? "flex h-[var(--canvas-create-node-height)] flex-col items-start justify-between rounded-[var(--dock-item-radius)] px-2 py-2 text-left"
                             : variant === "workflow"
                                 ? "flex h-[var(--canvas-create-resource-height)] items-center justify-start gap-2 rounded-[var(--dock-item-radius)] px-2 text-left"
                                 : "flex h-[var(--canvas-create-resource-height)] items-center justify-center gap-1.5 rounded-[var(--dock-item-radius)] px-2 text-center",
                     )}
-                    style={{ color: theme.node.text, "--tw-ring-color": theme.toolbar.border } as CSSProperties}
+                    style={{ color: theme.node.text, "--tw-ring-color": theme.node.muted } as CSSProperties}
                     title={command.disabledReason ? `${command.label}：${command.disabledReason}` : command.label}
                     onMouseDown={(event) => event.stopPropagation()}
                     onClick={() => { if (!command.disabledReason) command.onClick(); }}
