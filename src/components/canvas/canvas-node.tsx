@@ -878,10 +878,11 @@ function ConnectionSideRail({ side, scale, theme, visible = false, hideGlyph = f
     const inverseScale = 1 / Math.max(scale, 0.05);
     // 使用画布逐帧更新的倍率，避免滚轮结束、React 提交倍率时才补偿尺寸而突然变大。
     const liveInverseScale = `var(--canvas-live-inverse-scale, ${inverseScale})`;
-    const handleScreenSize = connectionHandleDiameter;
-    // 点击区也固定为屏幕 44px，避免大倍率时鼠标跟随范围被画布成倍放大。
-    const railSize = `calc(44px * ${liveInverseScale})`;
     const handleSize = "var(--canvas-connection-handle-size)";
+    // 圆钮随镜头同比放大，缩小时保留原 20px 屏幕下限。
+    const handleWorldSize = `max(calc(20px * ${liveInverseScale}), ${connectionHandleDiameter}px)`;
+    // 保留原 44px 点击区与 20px 圆钮之间的 24px 跟随空间，只随圆钮尺寸扩展。
+    const railSize = `calc(${handleSize} + 24px * ${liveInverseScale})`;
     // 圆钮外缘与节点保留 6px 屏幕间距，视觉位置与真实的节点中点连线锚点分开。
     const restOffset = `calc(${side === "left" ? 1 : -1} * ((${railSize} - ${handleSize}) / 2 - 6px * ${liveInverseScale}))`;
     // 间距限制放在 CSS 中逐帧计算，缩放期间即使鼠标不动，悬停圆钮也不会压住边框。
@@ -925,7 +926,7 @@ function ConnectionSideRail({ side, scale, theme, visible = false, hideGlyph = f
             style={{
                 "--canvas-connection-inverse-scale": liveInverseScale,
                 "--canvas-connection-rail-size": railSize,
-                "--canvas-connection-handle-size": `calc(${handleScreenSize}px * ${liveInverseScale})`,
+                "--canvas-connection-handle-size": handleWorldSize,
                 "--canvas-connection-gap": `calc(6px * ${liveInverseScale})`,
                 "--canvas-connection-rest-offset": restOffset,
                 width: railSize,
@@ -955,13 +956,11 @@ function ConnectionSideRail({ side, scale, theme, visible = false, hideGlyph = f
                 style={{
                     display: showGlyph ? undefined : "none",
                     // 节点内只保留定位锚点，圆钮本体在未缩放的界面层绘制。
-                    width: handleScreenSize,
-                    height: handleScreenSize,
-                    marginLeft: -handleScreenSize / 2,
-                    marginTop: -handleScreenSize / 2,
+                    width: handleSize,
+                    height: handleSize,
+                    marginLeft: `calc(${handleSize} * -0.5)`,
+                    marginTop: `calc(${handleSize} * -0.5)`,
                     translate: `${boundedOffset} ${boundedVerticalOffset}`,
-                    scale: "var(--canvas-connection-inverse-scale)",
-                    transformOrigin: "center",
                 }}
             />
             {showGlyph ? (

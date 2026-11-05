@@ -1,7 +1,7 @@
 import { cubicBezier, easeInOut, easeOut, interpolate, spring } from "motion";
 
-/** 加号圆钮包含描边的屏幕外径；接入特效圈另按目标节点的世界尺寸绘制。 */
-export const connectionHandleDiameter = 20;
+/** 加号圆钮在 100% 镜头下的基准外径；接入特效圈另按目标节点的世界尺寸绘制。 */
+export const connectionHandleDiameter = 32;
 
 /** 统一使用画布世界坐标；scale 为世界坐标到屏幕 CSS 像素的倍率。 */
 export interface CablePoint {

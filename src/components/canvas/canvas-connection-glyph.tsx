@@ -2,7 +2,6 @@ import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
-import { connectionHandleDiameter } from "@/lib/canvas/canvas-connection-cable";
 import { subscribeCanvasGraphicsViewportPreview, subscribeCanvasNodeDragPreview } from "@/lib/canvas/canvas-live-viewport";
 
 /** 仅绘制连接圆钮；命中区域及连线事件继续由节点内的按钮负责。 */
@@ -27,6 +26,7 @@ export function CanvasConnectionGlyph({ anchorRef, side, theme, active }: {
         const update = () => {
             const bounds = anchor.getBoundingClientRect();
             const host = container.getBoundingClientRect();
+            const diameter = bounds.width;
             const ratio = window.devicePixelRatio;
             // 1px 描边占奇数个物理像素时，中心落在半像素；圆圈和加号共用此中心。
             const phase = (Math.round(ratio) % 2) / 2;
@@ -35,8 +35,9 @@ export function CanvasConnectionGlyph({ anchorRef, side, theme, active }: {
             // 水平方向向节点外侧取整，像素对齐也不侵占边框间距。
             const x = ((side === "left" ? Math.floor(centerX) : Math.ceil(centerX)) + phase) / ratio;
             const y = (Math.round(centerY) + phase) / ratio;
-            glyph.style.left = `${x - host.left - container.clientLeft - connectionHandleDiameter / 2}px`;
-            glyph.style.top = `${y - host.top - container.clientTop - connectionHandleDiameter / 2}px`;
+            glyph.style.setProperty("--canvas-connection-glyph-size", `${diameter}px`);
+            glyph.style.left = `${x - host.left - container.clientLeft - diameter / 2}px`;
+            glyph.style.top = `${y - host.top - container.clientTop - diameter / 2}px`;
             glyph.style.visibility = bounds.width > 0 && bounds.height > 0 ? "visible" : "hidden";
         };
 
@@ -69,8 +70,8 @@ export function CanvasConnectionGlyph({ anchorRef, side, theme, active }: {
             data-canvas-connection-glyph={side}
             className="pointer-events-none absolute z-[var(--node-z-overlay)] block rounded-full"
             style={{
-                width: connectionHandleDiameter,
-                height: connectionHandleDiameter,
+                width: "var(--canvas-connection-glyph-size)",
+                height: "var(--canvas-connection-glyph-size)",
                 visibility: "hidden",
                 border: `1px solid ${active ? "transparent" : theme.toolbar.border}`,
                 background: active ? theme.node.activeStroke : `color-mix(in srgb, ${theme.node.fill} 70%, transparent)`,
@@ -79,7 +80,7 @@ export function CanvasConnectionGlyph({ anchorRef, side, theme, active }: {
             }}
         >
             {/* 按真实容器中心定位，不用固定偏移抵消边框；浏览器缩放会量化边框宽度。 */}
-            <svg className="absolute left-1/2 top-1/2 block -translate-x-1/2 -translate-y-1/2" width={connectionHandleDiameter} height={connectionHandleDiameter} viewBox="0 0 20 20" fill="none">
+            <svg className="absolute left-1/2 top-1/2 block -translate-x-1/2 -translate-y-1/2" style={{ width: "var(--canvas-connection-glyph-size)", height: "var(--canvas-connection-glyph-size)" }} viewBox="0 0 20 20" fill="none">
                 <path d="M6 10h8M10 6v8" stroke="currentColor" strokeWidth="1" />
             </svg>
         </span>,
