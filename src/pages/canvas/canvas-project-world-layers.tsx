@@ -157,11 +157,7 @@ export const CanvasProjectWorldLayers = memo(function CanvasProjectWorldLayers(p
                 endpoints[0]?.setAttribute("cy", String(startY));
                 endpoints[1]?.setAttribute("cx", String(endX));
                 endpoints[1]?.setAttribute("cy", String(endY));
-                const gradient = group.querySelector<SVGLinearGradientElement>("linearGradient[gradientUnits]");
-                gradient?.setAttribute("x1", String(startX));
-                gradient?.setAttribute("y1", String(startY));
-                gradient?.setAttribute("x2", String(endX));
-                gradient?.setAttribute("y2", String(endY));
+                // 流光渐变由其绘制组件沿当前 path 的弧长定位，几何刷新只更新路径。
             }
         };
         // 重建 effect 时读取当前回弹 Map，不能等下一帧事件才修正新挂载的描边。

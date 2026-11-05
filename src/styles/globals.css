@@ -11655,6 +11655,16 @@ html:not(.dark) .creation-studio-control:hover,
         transition-timing-function: ease-out;
     }
 
+    .no-motion .canvas-connection-shuttle {
+        display: none;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .canvas-connection-shuttle {
+            display: none;
+        }
+    }
+
     /* 平移、缩放期间每条连线只画一条单色主线：底衬描边、光晕、端点、流光都先不画。
        透明的点击路径不产生绘制，保留不动。 */
     [data-canvas-viewport-interacting="true"] g[data-canvas-connection-id] > :not(.canvas-connection-line, [data-connection-id], defs) {

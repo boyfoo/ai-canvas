@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 
+import { CanvasConnectionShuttle } from "@/components/canvas/canvas-connection-shuttle";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useActiveTheme } from "@/stores/canvas/use-canvas-theme-store";
 import { cablePath, cableStroke, connectionColor } from "@/lib/canvas/canvas-connection-cable";
@@ -47,20 +48,21 @@ function ConnectionPathView({
     // 透明度落在各描边自身，平移/缩放仅保留主线时也不会突然变亮。
     const state = selected ? "selected" : hovered ? "hovered" : related ? "related" : "idle";
     const color = selected || related ? connectionColor(light) : theme.node.text;
-    const lineOpacity = selected ? 0.96 : hovered ? 0.56 : related ? 0.46 : light ? 0.2 : 0.16;
-    const haloOpacity = selected ? 0.18 : hovered ? 0.05 : 0;
-    const highlightOpacity = selected ? light ? 0.24 : 0.32 : related ? 0.08 : 0;
-    const showEmphasis = showVisual && (selected || hovered) && !denseReadonlyWire;
+    // 选中线须高于悬停的视觉强度，短光梭再提供局部的亮度差。
+    const lineOpacity = selected ? 0.85 : hovered ? 0.56 : related ? 0.46 : light ? 0.2 : 0.16;
+    const highlightOpacity = !selected && related ? 0.08 : 0;
+    // 直接选中仅由短光梭强调，悬停的轻外晕不叠加到选中态。
+    const showHoverHalo = showVisual && hovered && !selected && !denseReadonlyWire;
     const endpointsD = `M ${startX} ${startY} l 0 0 M ${endX} ${endY} l 0 0`;
 
     return (
         <g data-canvas-connection-id={connection.id} data-connection-state={state}>
-            {/* 模糊仅用于悬停/直接选中；常态与关联线不绘制常驻光晕。 */}
-            {showEmphasis ? <path
+            {/* 模糊仅用于未选中连线的悬停；选中态保留清晰线身与局部流光。 */}
+            {showHoverHalo ? <path
                 d={pathD}
                 stroke={color}
                 strokeWidth={cableStroke.emphasisHalo}
-                strokeOpacity={selected ? light ? 0.18 : 0.24 : 0.07}
+                strokeOpacity={0.07}
                 vectorEffect="non-scaling-stroke"
                 fill="none"
                 strokeLinecap="round"
@@ -88,16 +90,16 @@ function ConnectionPathView({
                     onContextMenu?.(event, connection.id);
                 }}
             />
-            {showVisual && !denseReadonlyWire ? <path
+            {showHoverHalo ? <path
                 d={pathD}
                 stroke={color}
-                strokeWidth={cableStroke.halo}
-                strokeOpacity={haloOpacity}
+                strokeWidth={cableStroke.hoverHalo}
+                strokeOpacity={0.05}
                 vectorEffect="non-scaling-stroke"
                 fill="none"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                style={{ pointerEvents: "none", strokeWidth: `calc(${cableStroke.halo}px * var(--canvas-wire-inverse-scale, 1))` }}
+                style={{ pointerEvents: "none", strokeWidth: `calc(${cableStroke.hoverHalo}px * var(--canvas-wire-inverse-scale, 1))` }}
             /> : null}
             {showVisual ? <path
                 d={pathD}
@@ -140,8 +142,11 @@ function ConnectionPathView({
                 {/* 零长圆头描边形成端点圆点：继承逆倍率抵消外层 CSS 缩放，vectorEffect 保留 SVG 内部缩放保护。
                     拖动预览按此属性更新端点，不能把短 path 替换成整条连线路径。 */}
                 <path data-canvas-cable-endpoints d={endpointsD} stroke={color} strokeWidth={cableStroke.endpoint} strokeOpacity={lineOpacity} vectorEffect="non-scaling-stroke" fill="none" strokeLinecap="round" style={{ pointerEvents: "none", strokeWidth: `calc(${cableStroke.endpoint}px * var(--canvas-wire-inverse-scale, 1))` }} />
-                <path data-canvas-cable-endpoints d={endpointsD} stroke="white" strokeWidth={cableStroke.endpointHighlight} strokeOpacity={selected ? 0.6 : related ? 0.18 : 0} vectorEffect="non-scaling-stroke" fill="none" strokeLinecap="round" style={{ pointerEvents: "none", strokeWidth: `calc(${cableStroke.endpointHighlight}px * var(--canvas-wire-inverse-scale, 1))` }} />
+                <path data-canvas-cable-endpoints d={endpointsD} stroke="white" strokeWidth={cableStroke.endpointHighlight} strokeOpacity={!selected && related ? 0.18 : 0} vectorEffect="non-scaling-stroke" fill="none" strokeLinecap="round" style={{ pointerEvents: "none", strokeWidth: `calc(${cableStroke.endpointHighlight}px * var(--canvas-wire-inverse-scale, 1))` }} />
             </> : null}
+            {showVisual && selected && !denseReadonlyWire ? (
+                <CanvasConnectionShuttle pathD={pathD} color={light ? "#12535c" : "#ecffff"} />
+            ) : null}
             {showVisual && denseReadonlyWire ? <>
                 <circle cx={startX} cy={startY} r={0.35} fill={emphasized ? theme.accent.primary : theme.node.muted} fillOpacity={0.12} vectorEffect="non-scaling-stroke" style={{ pointerEvents: "none" }} />
                 <circle cx={endX} cy={endY} r={0.35} fill={emphasized ? theme.accent.primary : theme.node.muted} fillOpacity={0.12} vectorEffect="non-scaling-stroke" style={{ pointerEvents: "none" }} />
