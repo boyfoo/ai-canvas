@@ -60,7 +60,7 @@ export function CanvasLeaferGraphicsLayer(props: CanvasLeaferGraphicsLayerProps)
     const rasterViewportRef = useRef(props.viewport);
     const viewportSizeRef = useRef({ width: 1, height: 1 });
     const propsRef = useRef(props);
-    const previousInteractionRef = useRef({ single: props.connectingParams, batch: props.batchConnectionPreview });
+    const previousInteractionRef = useRef({ single: props.connectingParams, batch: props.batchConnectionPreview, nodeById: props.nodeById });
     const connectionIdsRef = useRef(new Set(props.connections.map((connection) => connection.id)));
     propsRef.current = props;
 
@@ -71,7 +71,7 @@ export function CanvasLeaferGraphicsLayer(props: CanvasLeaferGraphicsLayerProps)
 
         const overlay = createOverlayScene(overlayHost, (nodeIds) => propsRef.current.onConnectionFeedbackNodesChange(nodeIds));
         overlayRef.current = overlay;
-        previousInteractionRef.current = { single: null, batch: null };
+        previousInteractionRef.current = { single: null, batch: null, nodeById: propsRef.current.nodeById };
         connectionIdsRef.current = new Set(propsRef.current.connections.map((connection) => connection.id));
 
         const resize = () => {
@@ -164,7 +164,8 @@ export function CanvasLeaferGraphicsLayer(props: CanvasLeaferGraphicsLayerProps)
             const container = props.containerRef.current;
             const color = connectionColor(props.theme.canvas.background === "#f0f0f0");
             const bounds = { x: target.position.x, y: target.position.y, width: target.width, height: target.height, cornerRadius };
-            const prepareFeedback = () => container ? prepareCanvasConnectionImpact(container, targetId) : null;
+            // 创建节点与连线同批提交；新框不受撞击回弹，线头吸附与光效仍正常交接。
+            const prepareFeedback = () => container && previous.nodeById.has(targetId) ? prepareCanvasConnectionImpact(container, targetId) : null;
             let releasing = false;
             // 必须先接管全部草稿再 sync；同一框的不同端口各自落框，但只撞击一次。
             for (const { trackId, point } of entries) releasing = overlay.cables.release(trackId, targetId, point, color, bounds, prepareFeedback) || releasing;
@@ -174,7 +175,7 @@ export function CanvasLeaferGraphicsLayer(props: CanvasLeaferGraphicsLayerProps)
         syncOverlayContent(overlay, props, viewportRef.current.k, Boolean(reducedMotion));
         immediateFlashes.forEach((flash) => flash());
         connectionIdsRef.current = new Set(props.connections.map((connection) => connection.id));
-        previousInteractionRef.current = { single: props.connectingParams, batch: props.batchConnectionPreview };
+        previousInteractionRef.current = { single: props.connectingParams, batch: props.batchConnectionPreview, nodeById: props.nodeById };
     }, [props.projectId, props.batchConnectionPreview, props.connectingParams, props.connectionPortEffect, props.connectionTargetAnchorRatio, props.connectionTargetHandleId, props.connectionTargetNodeId, props.connections, props.mouseWorld, props.nodeById, props.scriptScrollTopById, props.selectedNodeBounds, props.selectionBox, props.theme, reducedMotion]);
 
     useLayoutEffect(() => {

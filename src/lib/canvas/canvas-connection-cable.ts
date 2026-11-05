@@ -64,17 +64,12 @@ export interface CableMotionFrame {
 export const cableStroke = {
     width: 2,
     halo: 4.5,
-    // 悬停外晕独立于临时拖线的 halo，收窄时不影响接线反馈。
-    hoverHalo: 3.5,
     backing: 3,
     highlight: 0.43,
     endpoint: 4,
-    endpointHighlight: 1,
-    emphasisHalo: 4.5,
-    emphasisBlur: 1.2,
 } as const;
 
-/** 连线强调态与接入特效统一青色；浅色画布加深同一色相，常态线由组件使用中性灰。 */
+/** 靠近电弧与接入特效统一青色；日常连线及拖线主体使用主题中性色。 */
 export function connectionColor(light = false): string {
     return light ? "#388d93" : "#77d9de";
 }

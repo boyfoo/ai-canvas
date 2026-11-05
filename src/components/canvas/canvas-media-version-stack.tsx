@@ -4,7 +4,7 @@ import type { CanvasTheme } from "@/lib/canvas-theme";
 import type { CanvasNodeData } from "@/types/canvas";
 import { CanvasMediaVersionPreview } from "./canvas-media-version-preview";
 
-/** 仅背卡持续悬停 1 秒后向上扇开；主框悬停不参与，点击仍打开原历史列表。 */
+/** 仅背卡持续悬停 500ms 后向上扇开；主框悬停不参与，点击仍打开原历史列表。 */
 export function CanvasMediaVersionStack({ count, previews = [], interactive, theme, onOpen }: { count: number; previews?: CanvasNodeData[]; interactive: boolean; theme: CanvasTheme; onOpen: () => void }) {
     const [backHovered, setBackHovered] = useState(false);
     const [hoverDelayElapsed, setHoverDelayElapsed] = useState(false);
@@ -12,7 +12,7 @@ export function CanvasMediaVersionStack({ count, previews = [], interactive, the
         setHoverDelayElapsed(false);
         if (!interactive) setBackHovered(false);
         if (!backHovered || !interactive) return;
-        const timer = window.setTimeout(() => setHoverDelayElapsed(true), 1000);
+        const timer = window.setTimeout(() => setHoverDelayElapsed(true), 500);
         // 移出、开始连线/拖动或卸载时取消，短暂掠过不展开，重新移入重新计时。
         return () => window.clearTimeout(timer);
     }, [backHovered, interactive]);

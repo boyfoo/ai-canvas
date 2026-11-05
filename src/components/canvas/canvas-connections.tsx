@@ -4,7 +4,7 @@ import type { MouseEvent as ReactMouseEvent } from "react";
 import { CanvasConnectionShuttle } from "@/components/canvas/canvas-connection-shuttle";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useActiveTheme } from "@/stores/canvas/use-canvas-theme-store";
-import { cablePath, cableStroke, connectionColor } from "@/lib/canvas/canvas-connection-cable";
+import { cablePath, cableStroke } from "@/lib/canvas/canvas-connection-cable";
 import { STORYBOARD_HEADER_HEIGHT, STORYBOARD_ROW_HEIGHT, storyboardTableHeight } from "@/lib/canvas/canvas-storyboard-layout";
 import { batchReferenceHandleY } from "@/lib/canvas/canvas-batch-table";
 import type { CanvasConnection, CanvasNodeData, ConnectionHandle, Position } from "@/types/canvas";
@@ -44,30 +44,15 @@ function ConnectionPathView({
     const denseReadonlyWire = connection.id.startsWith("libtv-dense-");
     const showVisual = shouldShowConnectionVisual({ visualMode, hovered, hideVisual });
     const light = themeName === "light";
-    // 常态退到背景，选中节点只适度突出邻边；直接选中连线才使用完整强调。
+    // 日常只保留淡灰和主题强调色两档；强调色与拖线共用，关联额外用短光梭表达。
     // 透明度落在各描边自身，平移/缩放仅保留主线时也不会突然变亮。
     const state = selected ? "selected" : hovered ? "hovered" : related ? "related" : "idle";
-    const color = selected || related ? connectionColor(light) : theme.node.text;
-    // 选中线须高于悬停的视觉强度，短光梭再提供局部的亮度差。
-    const lineOpacity = selected ? 0.85 : hovered ? 0.56 : related ? 0.46 : light ? 0.2 : 0.16;
-    const highlightOpacity = !selected && related ? 0.08 : 0;
-    // 直接选中仅由短光梭强调，悬停的轻外晕不叠加到选中态。
-    const showHoverHalo = showVisual && hovered && !selected && !denseReadonlyWire;
+    const color = emphasized ? theme.node.activeStroke : theme.node.text;
+    const lineOpacity = emphasized ? 0.75 : light ? 0.2 : 0.16;
     const endpointsD = `M ${startX} ${startY} l 0 0 M ${endX} ${endY} l 0 0`;
 
     return (
         <g data-canvas-connection-id={connection.id} data-connection-state={state}>
-            {/* 模糊仅用于未选中连线的悬停；选中态保留清晰线身与局部流光。 */}
-            {showHoverHalo ? <path
-                d={pathD}
-                stroke={color}
-                strokeWidth={cableStroke.emphasisHalo}
-                strokeOpacity={0.07}
-                vectorEffect="non-scaling-stroke"
-                fill="none"
-                strokeLinecap="round"
-                style={{ pointerEvents: "none", strokeWidth: `calc(${cableStroke.emphasisHalo}px * var(--canvas-wire-inverse-scale, 1))`, filter: `blur(calc(${cableStroke.emphasisBlur}px * var(--canvas-wire-inverse-scale, 1)))` }}
-            /> : null}
             {/* 命中仍为独立的屏幕 16px 透明描边，视觉厚度不改变选择和右键操作。 */}
             <path
                 data-connection-id={connection.id}
@@ -90,23 +75,12 @@ function ConnectionPathView({
                     onContextMenu?.(event, connection.id);
                 }}
             />
-            {showHoverHalo ? <path
-                d={pathD}
-                stroke={color}
-                strokeWidth={cableStroke.hoverHalo}
-                strokeOpacity={0.05}
-                vectorEffect="non-scaling-stroke"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                style={{ pointerEvents: "none", strokeWidth: `calc(${cableStroke.hoverHalo}px * var(--canvas-wire-inverse-scale, 1))` }}
-            /> : null}
             {showVisual ? <path
                 d={pathD}
                 stroke={denseReadonlyWire ? theme.node.muted : theme.canvas.background}
                 strokeWidth={denseReadonlyWire ? 0.75 : cableStroke.backing}
                 vectorEffect="non-scaling-stroke"
-                strokeOpacity={denseReadonlyWire ? 0.12 : selected ? 0.8 : emphasized ? 0.5 : 0.3}
+                strokeOpacity={denseReadonlyWire ? 0.12 : emphasized ? 0.5 : 0.3}
                 fill="none"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -127,24 +101,12 @@ function ConnectionPathView({
                 strokeDasharray={denseReadonlyWire ? "2 12" : undefined}
                 style={{ pointerEvents: "none", strokeWidth: denseReadonlyWire ? undefined : `calc(${cableStroke.width}px * var(--canvas-wire-inverse-scale, 1))` }}
             /> : null}
-            {showVisual && !denseReadonlyWire ? <>
-                <path
-                    d={pathD}
-                    stroke="white"
-                    strokeWidth={cableStroke.highlight}
-                    strokeOpacity={highlightOpacity}
-                    vectorEffect="non-scaling-stroke"
-                    fill="none"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    style={{ pointerEvents: "none", strokeWidth: `calc(${cableStroke.highlight}px * var(--canvas-wire-inverse-scale, 1))` }}
-                />
-                {/* 零长圆头描边形成端点圆点：继承逆倍率抵消外层 CSS 缩放，vectorEffect 保留 SVG 内部缩放保护。
-                    拖动预览按此属性更新端点，不能把短 path 替换成整条连线路径。 */}
+            {/* 零长圆头描边形成端点圆点：继承逆倍率抵消外层 CSS 缩放，vectorEffect 保留 SVG 内部缩放保护。
+                拖动预览按此属性更新端点，不能把短 path 替换成整条连线路径。 */}
+            {showVisual && !denseReadonlyWire ? (
                 <path data-canvas-cable-endpoints d={endpointsD} stroke={color} strokeWidth={cableStroke.endpoint} strokeOpacity={lineOpacity} vectorEffect="non-scaling-stroke" fill="none" strokeLinecap="round" style={{ pointerEvents: "none", strokeWidth: `calc(${cableStroke.endpoint}px * var(--canvas-wire-inverse-scale, 1))` }} />
-                <path data-canvas-cable-endpoints d={endpointsD} stroke="white" strokeWidth={cableStroke.endpointHighlight} strokeOpacity={!selected && related ? 0.18 : 0} vectorEffect="non-scaling-stroke" fill="none" strokeLinecap="round" style={{ pointerEvents: "none", strokeWidth: `calc(${cableStroke.endpointHighlight}px * var(--canvas-wire-inverse-scale, 1))` }} />
-            </> : null}
-            {showVisual && selected && !denseReadonlyWire ? (
+            ) : null}
+            {showVisual && related && !denseReadonlyWire ? (
                 <CanvasConnectionShuttle pathD={pathD} color={light ? "#12535c" : "#ecffff"} />
             ) : null}
             {showVisual && denseReadonlyWire ? <>
