@@ -1027,7 +1027,7 @@
     --canvas-create-resource-height: var(--space-8);
 
     /* Node 组件：节点首先是内容容器，常态不使用卡片投影或发光。 */
-    --node-radius: var(--r-lg);           /* 12px */
+    --node-radius: var(--r-3xl);          /* 20px */
     --node-header-height: 24px;
     --node-title-fs: var(--fs-label);     /* 11px */
     --node-badge-fs: var(--fs-tiny);      /* 10px */

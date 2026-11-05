@@ -25,7 +25,6 @@ type CanvasLodLayerProps = {
 
 // Mirrors InfiniteCanvas: floating UI and explicit no-zoom controls keep their events.
 const POINTER_IGNORE_SELECTOR = "[data-canvas-no-zoom],[data-connection-create-menu],[data-connection-id],.ant-modal,.ant-popover,.ant-dropdown,.ant-select-dropdown,.ant-picker-dropdown";
-const NODE_RADIUS = 12;
 
 /**
  * Overview renderer: one screen-space canvas below the DOM world layer. It
@@ -38,7 +37,7 @@ export function CanvasLodLayer(props: CanvasLodLayerProps) {
     propsRef.current = props;
     const viewportRef = useRef(props.viewport);
     const dragRef = useRef<CanvasLodDragOffset>(null);
-    const sizeRef = useRef({ width: 0, height: 0, dpr: 1, left: 0, top: 0 });
+    const sizeRef = useRef({ width: 0, height: 0, dpr: 1, left: 0, top: 0, nodeRadius: 0 });
     const frameRef = useRef<number | null>(null);
     const hoverRef = useRef<string | null>(null);
     // Child layout effects run before the viewport's own ref is attached.
@@ -60,7 +59,7 @@ export function CanvasLodLayer(props: CanvasLodLayerProps) {
         context.setTransform(1, 0, 0, 1, 0, 0);
         context.clearRect(0, 0, canvas.width, canvas.height);
         const { active, theme, selectedNodeIds } = propsRef.current;
-        const { width, height, dpr } = sizeRef.current;
+        const { width, height, dpr, nodeRadius } = sizeRef.current;
         if (!active || !width || !height) return;
         const viewport = viewportRef.current;
         const k = viewport.k;
@@ -72,7 +71,7 @@ export function CanvasLodLayer(props: CanvasLodLayerProps) {
         const viewRight = viewLeft + width / k;
         const viewBottom = viewTop + height / k;
         const pixel = 1 / k;
-        const radius = NODE_RADIUS * k >= 1.5 ? NODE_RADIUS : 0;
+        const radius = nodeRadius * k >= 1.5 ? nodeRadius : 0;
         const drag = dragRef.current;
         const requestRedraw = scheduleDrawRef.current;
         for (const node of orderedRef.current) {
@@ -97,7 +96,12 @@ export function CanvasLodLayer(props: CanvasLodLayerProps) {
                 const thumbnail = getCanvasLodThumbnail(node, requestRedraw);
                 if (thumbnail && thumbnail !== "failed") {
                     const rect = canvasLodContainRect(box, thumbnail.width, thumbnail.height, Boolean(node.metadata?.freeResize));
+                    context.save();
+                    context.beginPath();
+                    context.roundRect(box.x, box.y, box.width, box.height, radius);
+                    context.clip();
                     context.drawImage(thumbnail.source, rect.x, rect.y, rect.width, rect.height);
+                    context.restore();
                 } else {
                     context.fillStyle = theme.node.stroke;
                     fillBox(context, box, radius);
@@ -145,7 +149,8 @@ export function CanvasLodLayer(props: CanvasLodLayerProps) {
             const rect = container.getBoundingClientRect();
             const dpr = window.devicePixelRatio || 1;
             const active = propsRef.current.active;
-            sizeRef.current = { width: rect.width, height: rect.height, dpr, left: rect.left, top: rect.top };
+            const nodeRadius = Number.parseFloat(getComputedStyle(canvas).getPropertyValue("--node-radius"));
+            sizeRef.current = { width: rect.width, height: rect.height, dpr, left: rect.left, top: rect.top, nodeRadius };
             // Inactive overview keeps no GPU backing store.
             const pixelWidth = active ? Math.max(1, Math.round(rect.width * dpr)) : 0;
             const pixelHeight = active ? Math.max(1, Math.round(rect.height * dpr)) : 0;

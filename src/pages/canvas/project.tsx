@@ -101,7 +101,6 @@ import { useCanvasNodeMediaShareActions } from "./use-canvas-node-media-share-ac
 import { canvasNodeRetryPlan } from "./canvas-generation-orchestration";
 import { linkedFolderPresentation } from "./canvas-resource-handoff-plan";
 import { useCanvasAssistantProposal } from "./use-canvas-assistant-proposal";
-import { useCanvasConnectedNodeVisibility } from "./use-canvas-connected-node-visibility";
 import { useCanvasGenerationOrchestration } from "./use-canvas-generation-orchestration";
 import { useCanvasPointerSelectionChrome, useCanvasNodeToolbarHover } from "./use-canvas-pointer-chrome";
 import { useCanvasNodeClick } from "./use-canvas-node-click";
@@ -481,17 +480,6 @@ function InfiniteCanvasPage() {
         onError: (error) => { void message.error(error); },
     });
 
-    // Pan only the viewport (never the node) when a newly connected target
-    // crosses the visible canvas safe area, including under the Agent dock.
-    const keepConnectedNodeVisible = useCanvasConnectedNodeVisibility({
-        size,
-        containerRef,
-        viewportRef,
-        nodesRef,
-        connectionsRef,
-        setViewport,
-    });
-
     const generation = useCanvasGenerationOrchestration({
         pageUi,
         projectId,
@@ -783,7 +771,6 @@ function InfiniteCanvasPage() {
         setNodes,
         setConnections,
         setDrawingNodeId,
-        onConnectedNodeCreated: keepConnectedNodeVisible,
         onReplaceReference: handleReplaceNodeReference,
     });
     const {

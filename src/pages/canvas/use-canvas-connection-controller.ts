@@ -34,7 +34,6 @@ type UseCanvasConnectionControllerOptions = {
     setNodes: Dispatch<SetStateAction<CanvasNodeData[]>>;
     setConnections: Dispatch<SetStateAction<CanvasConnection[]>>;
     setDrawingNodeId: Dispatch<SetStateAction<string | null>>;
-    onConnectedNodeCreated?: (node: CanvasNodeData, sourceNodeId?: string) => void;
     onReplaceReference?: (targetNodeId: string, oldReference: { id: string; nodeId?: string; label?: string; title?: string }, sourceNodeId: string) => void;
 };
 
@@ -139,7 +138,6 @@ export function useCanvasConnectionController({
     setNodes,
     setConnections,
     setDrawingNodeId,
-    onConnectedNodeCreated,
     onReplaceReference,
 }: UseCanvasConnectionControllerOptions) {
     const { message } = App.useApp();
@@ -388,7 +386,6 @@ export function useCanvasConnectionController({
             }
             const nextConnections = [...connectionsRef.current, ...batchPlan.connections];
             const nextNodes = batchPlan.connections.reduce((currentNodes, connection) => attachNodeToStoryboardRow(currentNodes, connection), [...nodesRef.current, newNode]);
-            onConnectedNodeCreated?.(newNode, pending.connection.nodeId);
             nodesRef.current = nextNodes;
             connectionsRef.current = nextConnections;
             setNodes(nextNodes);
@@ -456,7 +453,6 @@ export function useCanvasConnectionController({
         const fromAnchorRatio = connection.fromNodeId === pending.connection.nodeId ? pending.connection.anchorRatio : 0.5;
         const toAnchorRatio = connection.toNodeId === pending.connection.nodeId ? pending.connection.anchorRatio : 0.5;
         const connected = { ...connection, fromHandleId, toHandleId, fromAnchorRatio, toAnchorRatio };
-        onConnectedNodeCreated?.(newNode, pending.connection.nodeId);
         setNodes((currentNodes) => attachNodeToStoryboardRow([...currentNodes, newNode], connected));
         setConnections((currentConnections) => [...currentConnections, { id: nanoid(), ...connected }]);
         pageUi.getState().setSelectedNodeIds(new Set([newNode.id]));
@@ -465,7 +461,7 @@ export function useCanvasConnectionController({
         pageUi.getState().setDialogNodeId(nodeType !== CanvasNodeType.Text && nodeType !== CanvasNodeType.BatchTable && nodeType !== CanvasNodeType.MediaConversion && canOpenCanvasNodePromptPanel(newNode) ? newNode.id : null);
         closeConnectionCreateMenu();
         setConnecting(null);
-    }, [closeConnectionCreateMenu, config, connectionsRef, defaultDrawingEngine, message, nodesRef, onConnectedNodeCreated, projectId, runtimeStatuses, setConnecting, setConnections, setDrawingNodeId, setNodes]);
+    }, [closeConnectionCreateMenu, config, connectionsRef, defaultDrawingEngine, message, nodesRef, projectId, runtimeStatuses, setConnecting, setConnections, setDrawingNodeId, setNodes]);
 
     const getConnectionCreateDisabledReason = useCallback((type: CanvasNodeType.Image | CanvasNodeType.Text | CanvasNodeType.Script | CanvasNodeType.BatchTable | CanvasNodeType.Video | CanvasNodeType.Audio | CanvasNodeType.Drawing | CanvasNodeType.Config | CanvasNodeType.MediaConversion, pending: PendingConnectionCreate, workflowProvider?: "runninghub") => {
         const nodeType = type;
