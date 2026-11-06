@@ -23,7 +23,7 @@
     background: var(--surface-hover);
 }
 .model-connection-entry.is-selected {
-    border-color: var(--workspace-accent);
+    border-color: var(--workspace-border-strong);
     background: var(--surface-active);
 }
 .model-connection-entry button:disabled {
@@ -37,13 +37,13 @@
 .model-service-editor {
     min-width: 0;
     overflow: hidden;
-    border: 1px solid var(--workspace-border);
+    border: 1px solid transparent;
     border-radius: 12px;
     background: var(--surface);
 }
 .model-service-header {
     padding: 22px 24px;
-    border-bottom: 1px solid var(--workspace-border);
+    border-bottom: 1px solid transparent;
 }
 .model-service-header h2 {
     margin: 0;
@@ -58,6 +58,9 @@
 .model-service-body > .ant-tabs > .ant-tabs-nav {
     margin: 0;
     padding: 0 24px;
+}
+.model-service-body > .ant-tabs > .ant-tabs-nav::before {
+    border-bottom-color: transparent;
 }
 .model-service-fields,
 .model-service-models {
@@ -95,7 +98,7 @@
     gap: 10px;
     padding: 12px 4px;
     cursor: pointer;
-    border-bottom: 1px solid var(--workspace-border);
+    border-bottom: 1px solid transparent;
 }
 .model-service-model > span:nth-child(2) {
     min-width: 0;
@@ -123,10 +126,32 @@
     border: 1px solid var(--workspace-border);
     border-radius: 8px;
     padding: 10px 12px;
+    transition: background-color var(--product-state) var(--product-ease);
+}
+.model-connection-model:not(.is-selected):hover:has(> button:not(:disabled)) {
+    background: var(--surface-hover);
 }
 .model-connection-model.is-selected {
     background: var(--surface-active);
-    border-color: var(--workspace-accent);
+    border-color: var(--workspace-border-strong);
+}
+/* 模型行只反馈底色，覆盖共享按钮和点击动画的位移、缩放。 */
+.model-service-editor .model-connection-model > button,
+.model-service-editor .model-connection-model > button svg {
+    transform: none !important;
+    translate: none !important;
+    scale: 1 !important;
+}
+.model-service-editor .model-connection-model > button:not(:disabled):is(:hover, :active) {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+.model-connection-model-trigger:focus-visible {
+    outline: 2px solid var(--product-focus-ring);
+    outline-offset: 2px;
+}
+.model-service-editor .model-connection-model-remove:not(:disabled):hover {
+    color: var(--destructive) !important;
 }
 .model-service-footer {
     padding: 16px 24px;

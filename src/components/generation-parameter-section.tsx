@@ -16,7 +16,7 @@ export function GenerationParameterSection({
     const title = extension ? `扩展参数${source ? ` · ${source}` : ""}` : "通用参数";
     const heading = (
         <span className="inline-flex flex-wrap items-center gap-2">
-            <Tag className="!m-0" color={extension ? "purple" : "blue"}>
+            <Tag className="!m-0 !border-transparent" color={extension ? "purple" : "blue"}>
                 {extension ? "扩展" : "通用"}
             </Tag>
             <span className="text-xs font-semibold">{title}</span>
@@ -30,7 +30,7 @@ export function GenerationParameterSection({
             {children}
         </div>
     );
-    const className = "rounded-lg border border-[var(--workspace-border)] p-3";
+    const className = "rounded-lg border border-transparent bg-foreground/[.025] p-3";
     return collapsible ? (
         <details className={className}>
             <summary className="cursor-pointer" aria-label={title}>

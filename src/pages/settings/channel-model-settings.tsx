@@ -163,7 +163,7 @@ export function ChannelModelSettings({
                         <div key={model} className={`model-connection-model ${model === selected ? "is-selected" : ""}`}>
                             <button
                                 type="button"
-                                className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                                className="model-connection-model-trigger flex min-w-0 flex-1 items-center gap-2 text-left"
                                 disabled={Boolean(testingModel)}
                                 aria-pressed={model === selected}
                                 onClick={() => {
@@ -180,12 +180,15 @@ export function ChannelModelSettings({
                                         </span>
                                     </div>
                                 </div>
-                                <ChevronRight size={14} />
+                                <span className="flex shrink-0" aria-hidden="true">
+                                    <ChevronRight size={14} />
+                                </span>
                             </button>
                             {onRemove && !managed && (
                                 <Button
                                     type="text"
                                     size="small"
+                                    className="model-connection-model-remove"
                                     disabled={Boolean(testingModel)}
                                     aria-label={`停用模型 ${model}`}
                                     icon={<Trash2 size={13} />}
@@ -196,7 +199,7 @@ export function ChannelModelSettings({
                     );
                 })}
             </div>
-            <section className="rounded-lg border border-[var(--workspace-border)] p-4" aria-label={`模型详情 ${selected}`}>
+            <section className="rounded-lg border border-transparent p-4" aria-label={`模型详情 ${selected}`}>
                 <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                         <h4 className="break-all text-sm font-semibold">{profile.displayName || selected}</h4>

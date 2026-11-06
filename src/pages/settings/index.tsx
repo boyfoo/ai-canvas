@@ -1,4 +1,4 @@
-import { App, Button } from "antd";
+import { App, Button, ConfigProvider, type ThemeConfig } from "antd";
 import { ArrowLeft } from "lucide-react";
 import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router";
@@ -13,6 +13,16 @@ import { ReferenceStoragePane } from "./reference-storage-pane";
 import { PageHeader } from "@/components/layout/workspace-page";
 
 type ConfigSectionKey = "channels" | "models" | "storage" | "diagnostics";
+
+// 只收敛设置表单的常态边框；焦点与校验状态继续交给现有 AntD 主题。
+const settingsTheme: ThemeConfig = {
+    token: { boxShadowSecondary: "var(--elevation-overlay)" },
+    components: {
+        Input: { colorBorder: "var(--workspace-border)", hoverBorderColor: "var(--workspace-border-strong)", activeBorderColor: "var(--control-focus-ring)" },
+        InputNumber: { colorBorder: "var(--workspace-border)", hoverBorderColor: "var(--workspace-border-strong)", activeBorderColor: "var(--control-focus-ring)" },
+        Select: { colorBorder: "var(--workspace-border)", hoverBorderColor: "var(--workspace-border-strong)", activeBorderColor: "var(--control-focus-ring)" },
+    },
+};
 
 export function isConfigSection(value: string | null): value is ConfigSectionKey {
     return value === "channels" || value === "models" || value === "storage" || value === "diagnostics";
@@ -33,8 +43,8 @@ export default function SettingsPage() {
     const shouldPromptContinue = searchParams.get("continue") === "1";
     const userChannels = config.channels.filter((channel) => channel.scope !== "system");
     useLayoutEffect(() => {
-        document.body.classList.add("app-user-overlays");
-        return () => document.body.classList.remove("app-user-overlays");
+        document.body.classList.add("app-settings-overlays");
+        return () => document.body.classList.remove("app-settings-overlays");
     }, []);
 
     useEffect(() => {
@@ -104,6 +114,7 @@ export default function SettingsPage() {
     };
 
     return (
+        <ConfigProvider theme={settingsTheme}>
         <main className="settings-page app-workspace-page app-user-workspace app-section-page flex h-full min-h-0 flex-col text-foreground">
             <nav className="flex shrink-0 flex-wrap gap-2 border-b border-[var(--workspace-border)] px-4 py-3 sm:px-6" aria-label="设置导航">
                 {([{ key: "channels", label: "连接管理" }, { key: "models", label: "默认模型" }, { key: "storage", label: "存储设置" }] as const).map(item => {
@@ -135,6 +146,7 @@ export default function SettingsPage() {
                 projectId={searchParams.get("projectId") || undefined}
             />
         </main>
+        </ConfigProvider>
     );
 }
 
