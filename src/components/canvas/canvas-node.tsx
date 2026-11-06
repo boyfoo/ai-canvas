@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { AnimatePresence } from "motion/react";
 import type { ReactNode } from "react";
 import { AlertCircle, BookOpenCheck, CheckCircle2, ChevronRight, Clapperboard, Copy, Download, FileText, GripVertical, Image as ImageIcon, Lock, Maximize2, Move3d, Music2, Pencil, RefreshCw, ScanSearch, Settings2, Star, Trash2, Video, WandSparkles } from "lucide-react";
 
@@ -39,6 +40,7 @@ type CanvasNodeProps = {
     isFocusRelated: boolean;
     isConnectionTarget: boolean;
     connectionActive?: boolean;
+    connectionFeedbackActive: boolean;
     connectionApproach?: Position;
     forceInputVisible?: boolean;
     showImageInfo: boolean;
@@ -103,6 +105,7 @@ export const CanvasNode = React.memo(function CanvasNode({
     isFocusRelated,
     isConnectionTarget,
     connectionActive = false,
+    connectionFeedbackActive,
     connectionApproach,
     forceInputVisible = false,
     reduceMediaEffects = false,
@@ -598,8 +601,8 @@ export const CanvasNode = React.memo(function CanvasNode({
                 </div>
             </div>
 
-            {!readOnly && data.type !== CanvasNodeType.Script && data.type !== CanvasNodeType.BatchTable && data.type !== CanvasNodeType.WorkflowControl ? <ConnectionSideRail side="left" scale={scale} theme={theme} visible={hovered || isSelected || forceInputVisible} hideGlyph={connectionActive || isConnectionTarget} onPointerDown={(event, anchorRatio) => onConnectStart(event, data.id, "target", undefined, anchorRatio)} /> : null}
-            {!readOnly && data.type !== CanvasNodeType.Script && data.type !== CanvasNodeType.Config && showOutputConnection ? <ConnectionSideRail side="right" scale={scale} theme={theme} visible={hovered || isSelected} hideGlyph={connectionActive || isConnectionTarget} onPointerDown={(event, anchorRatio) => onConnectStart(event, data.id, "source", undefined, anchorRatio)} /> : null}
+            {!readOnly && data.type !== CanvasNodeType.Script && data.type !== CanvasNodeType.BatchTable && data.type !== CanvasNodeType.WorkflowControl ? <ConnectionSideRail side="left" scale={scale} theme={theme} visible={hovered || isSelected || forceInputVisible} hideGlyph={connectionActive || isConnectionTarget || connectionFeedbackActive} onPointerDown={(event, anchorRatio) => onConnectStart(event, data.id, "target", undefined, anchorRatio)} /> : null}
+            {!readOnly && data.type !== CanvasNodeType.Script && data.type !== CanvasNodeType.Config && showOutputConnection ? <ConnectionSideRail side="right" scale={scale} theme={theme} visible={hovered || isSelected} hideGlyph={connectionActive || isConnectionTarget || connectionFeedbackActive} onPointerDown={(event, anchorRatio) => onConnectStart(event, data.id, "source", undefined, anchorRatio)} /> : null}
 
         </div>
     );
@@ -617,6 +620,7 @@ function areCanvasNodePropsEqual(previous: CanvasNodeProps, next: CanvasNodeProp
         previous.isFocusRelated === next.isFocusRelated &&
         previous.isConnectionTarget === next.isConnectionTarget &&
         previous.connectionActive === next.connectionActive &&
+        previous.connectionFeedbackActive === next.connectionFeedbackActive &&
         previous.connectionApproach?.x === next.connectionApproach?.x &&
         previous.connectionApproach?.y === next.connectionApproach?.y &&
         previous.forceInputVisible === next.forceInputVisible &&
@@ -922,7 +926,7 @@ function ConnectionSideRail({ side, scale, theme, visible = false, hideGlyph = f
             type="button"
             data-canvas-connection-rail={side}
             data-canvas-live-scale
-            className={`pointer-events-auto absolute top-1/2 z-[var(--node-z-overlay)] flex -translate-y-1/2 items-center justify-center touch-none cursor-crosshair rounded-full outline-none transition-opacity duration-150 ${visible || railHovered ? "opacity-100" : "opacity-0"}`}
+            className="pointer-events-auto absolute top-1/2 z-[var(--node-z-overlay)] flex -translate-y-1/2 items-center justify-center touch-none cursor-crosshair rounded-full outline-none"
             style={{
                 "--canvas-connection-inverse-scale": liveInverseScale,
                 "--canvas-connection-rail-size": railSize,
@@ -954,7 +958,7 @@ function ConnectionSideRail({ side, scale, theme, visible = false, hideGlyph = f
                 aria-hidden="true"
                 className="pointer-events-none invisible absolute left-1/2 top-1/2 block"
                 style={{
-                    display: showGlyph ? undefined : "none",
+                    // 淡出结束前仍需读取锚点；invisible 已隐藏它，不能再用 display:none。
                     // 节点内只保留定位锚点，圆钮本体在未缩放的界面层绘制。
                     width: handleSize,
                     height: handleSize,
@@ -963,13 +967,19 @@ function ConnectionSideRail({ side, scale, theme, visible = false, hideGlyph = f
                     translate: `${boundedOffset} ${boundedVerticalOffset}`,
                 }}
             />
-            {showGlyph ? (
-                <CanvasConnectionGlyph
-                    anchorRef={handleRef}
-                    side={side}
-                    theme={theme}
-                    active={railHovered}
-                />
+            {/* 接线时直接卸载；普通悬停移出才保留圆钮完成淡出。 */}
+            {!hideGlyph ? (
+                <AnimatePresence>
+                    {showGlyph ? (
+                        <CanvasConnectionGlyph
+                            key={side}
+                            anchorRef={handleRef}
+                            side={side}
+                            theme={theme}
+                            active={railHovered}
+                        />
+                    ) : null}
+                </AnimatePresence>
             ) : null}
         </button>
     );

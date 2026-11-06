@@ -1513,6 +1513,7 @@ function InfiniteCanvasPage() {
                                                 connectingParams={connectingParams}
                                                 mouseWorld={mouseWorld}
                                                 connectionTargetNodeId={connectionTargetNodeId}
+                                                connectionFeedbackNodeIds={connectionFeedbackNodeIds}
                                                 nodeById={nodeById}
                                                 visibleNodes={visibleNodes}
                                                 nodeStackOrder={nodeStackOrder}

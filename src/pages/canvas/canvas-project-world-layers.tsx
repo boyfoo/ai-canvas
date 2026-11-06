@@ -31,6 +31,7 @@ type CanvasProjectWorldLayersProps = {
     connectingParams: ConnectionHandle | null;
     mouseWorld: Position;
     connectionTargetNodeId: string | null;
+    connectionFeedbackNodeIds: ReadonlySet<string>;
     connectionApproach: CanvasConnectionApproach;
     nodeById: Map<string, CanvasNodeData>;
     visibleNodes: CanvasNodeData[];
@@ -300,6 +301,7 @@ export const CanvasProjectWorldLayers = memo(function CanvasProjectWorldLayers(p
                         isFocusRelated={props.activeNodeId === node.id}
                         isConnectionTarget={props.connectionTargetNodeId === node.id || props.batchConnectionPreview?.targetNodeId === node.id}
                         connectionActive={Boolean(props.connectingParams || props.batchConnectionPreview)}
+                        connectionFeedbackActive={props.connectionFeedbackNodeIds.has(node.id)}
                         connectionApproach={props.connectionApproach?.nodeId === node.id ? props.connectionApproach.point : undefined}
                         forceInputVisible={Boolean(props.batchConnectionPreview)}
                         batchCount={props.batchChildCountById.get(node.id) || 0}

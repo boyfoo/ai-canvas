@@ -166,6 +166,7 @@ export function CanvasVersionPreview({ preview, busy = false, onReturn, onShowVe
                                             data={{ ...node, id: previewNodeId(node.id) }}
                                             scale={viewport.k}
                                             readOnly
+                                            connectionFeedbackActive={false}
                                             isSelected={selectedId === node.id}
                                             mediaActive={selectedId === node.id}
                                             isRelated={false}
