@@ -332,7 +332,6 @@ export function CanvasNodeLightingPanel({ dataUrl, onClose, onConfirm }: { dataU
                 <button type="button" className={secondaryButtonClass} onClick={() => setIsTemplateDialogOpen(true)}>设置提示词</button>
                 <motion.button
                     type="button"
-                    whileHover={reducedMotion ? undefined : { y: -1 }}
                     whileTap={reducedMotion ? undefined : { scale: 0.97 }}
                     className="flex h-8 items-center gap-1.5 rounded-[var(--dock-item-radius)] border px-3 text-[var(--fs-label)] font-semibold transition-colors"
                     style={{ borderColor: theme.node.activeStroke, color: theme.node.activeStroke, background: "transparent" }}

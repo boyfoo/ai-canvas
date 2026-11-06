@@ -142,7 +142,7 @@ export function CanvasFreeformEmptyState({ commands, onOpenAssistant }: { comman
                                 aria-label={item.label}
                                 onDoubleClick={(event) => event.stopPropagation()}
                                 onClick={() => { if (!command.disabledReason) command.onClick(); }}
-                                className={`group flex min-h-[56px] min-w-0 flex-row items-center gap-3 rounded-lg border px-3 py-2 text-left shadow-sm outline-none transition focus-visible:ring-2 motion-reduce:transition-none ${command.disabledReason ? "cursor-not-allowed opacity-40 grayscale" : "hover:-translate-y-0.5 hover:brightness-105 motion-reduce:hover:translate-y-0"}`}
+                                className={`group flex min-h-[56px] min-w-0 flex-row items-center gap-3 rounded-lg border px-3 py-2 text-left shadow-sm outline-none transition focus-visible:ring-2 motion-reduce:transition-none ${command.disabledReason ? "cursor-not-allowed opacity-40 grayscale" : "hover:brightness-105"}`}
                                 style={{ background: theme.node.fill, borderColor: theme.node.stroke, boxShadow: theme.node.shadow, "--tw-ring-color": theme.accent.primary } as CSSProperties}
                             >
                                 <span className="grid size-9 shrink-0 place-items-center rounded-md" style={{ color: "#fff", background: item.accent, boxShadow: `0 6px 16px ${item.accent}33` }}>{item.icon}</span>

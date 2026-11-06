@@ -129,7 +129,7 @@ export function CanvasNodeAnglePanel({ dataUrl, onClose, onConfirm }: { dataUrl:
                 <span className="text-[var(--fs-tiny)] opacity-60">{params.horizontalAngle}° / {params.pitchAngle}° · {params.cameraDistance.toFixed(1)} {distanceLabel(params.cameraDistance)}</span>
                 <span className="flex-1" />
                 <button type="button" className="flex h-8 items-center gap-1.5 rounded-[var(--dock-item-radius)] px-2 text-[var(--fs-label)] font-medium transition hover:bg-black/5 dark:hover:bg-white/10" onClick={() => setParams(defaultParams)}><RotateCcw className="size-3.5" />重置</button>
-                <motion.button type="button" whileHover={reducedMotion ? undefined : { y: -1 }} whileTap={reducedMotion ? undefined : { scale: 0.97 }} className="canvas-angle-generate flex h-8 items-center gap-1.5 rounded-[var(--dock-item-radius)] px-3 text-[var(--fs-label)] font-semibold" style={{ background: theme.node.activeStroke, color: theme.node.panel }} onClick={() => onConfirm(params)}><Send className="size-3.5" />生成新角度</motion.button>
+                <motion.button type="button" whileTap={reducedMotion ? undefined : { scale: 0.97 }} className="canvas-angle-generate flex h-8 items-center gap-1.5 rounded-[var(--dock-item-radius)] px-3 text-[var(--fs-label)] font-semibold" style={{ background: theme.node.activeStroke, color: theme.node.panel }} onClick={() => onConfirm(params)}><Send className="size-3.5" />生成新角度</motion.button>
             </div>
         </SpotlightSurface>
     );

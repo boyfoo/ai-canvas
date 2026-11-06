@@ -1,0 +1,306 @@
+.ark-generation-history-page.generation-history-page .assets-library-hero {
+    min-height: 76px !important;
+}
+
+.ark-generation-history-page.generation-history-page .assets-library-hero .app-page-header {
+    height: auto !important;
+    min-height: 64px !important;
+    gap: 12px;
+}
+
+.ark-generation-history-content {
+    min-width: 0;
+    padding: 12px 0 8px;
+}
+
+.ark-generation-history-connection,
+.ark-generation-history-filters {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.ark-generation-history-connection {
+    padding-bottom: 14px;
+    color: color-mix(in srgb, var(--foreground) 65%, transparent);
+    font-size: 12px;
+}
+
+.ark-generation-history-channel {
+    width: 240px;
+    max-width: 100%;
+}
+
+.ark-generation-history-hint,
+.ark-generation-history-total,
+.ark-generation-history-page-limit {
+    color: color-mix(in srgb, var(--foreground) 48%, transparent);
+    font-size: 12px;
+    line-height: 20px;
+}
+
+.ark-generation-history-status-filter {
+    width: 130px;
+}
+
+.ark-generation-history-search {
+    width: min(360px, 100%);
+}
+
+.ark-generation-history-total {
+    margin-left: auto;
+}
+
+.ark-generation-history-grid {
+    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
+}
+
+.ark-generation-history-card {
+    min-width: 0;
+    padding: 9px;
+    border: 1px solid transparent;
+    border-radius: 16px;
+    background: var(--card-surface);
+    box-shadow: none;
+    transform: none;
+}
+
+.ark-generation-history-card:hover {
+    border-color: color-mix(in srgb, var(--foreground) 8%, transparent);
+    box-shadow: none;
+    transform: none;
+}
+
+.ark-generation-history-media {
+    position: relative;
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    padding: 0;
+    border: 0;
+    border-radius: 11px;
+    background: var(--canvas-cover-surface, var(--surface-card));
+    color: var(--foreground);
+    cursor: pointer;
+    transform: none;
+}
+
+.ark-generation-history-media:disabled {
+    cursor: default;
+    opacity: 1;
+}
+
+.ark-generation-history-media:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 3px;
+}
+
+.ark-generation-history-media img,
+.ark-generation-history-media video {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.ark-generation-history-placeholder {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    color: color-mix(in srgb, var(--foreground) 38%, transparent);
+    font-size: 12px;
+}
+
+.ark-generation-history-play {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    display: grid;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    padding-left: 2px;
+    border-radius: 50%;
+    background: rgb(0 0 0 / 50%);
+    color: white;
+    transform: translate(-50%, -50%);
+}
+
+.ark-generation-history-status,
+.ark-generation-history-unavailable {
+    position: absolute;
+    padding: 3px 7px;
+    border-radius: 6px;
+    background: rgb(0 0 0 / 62%);
+    color: rgb(255 255 255 / 85%);
+    font-size: 11px;
+    line-height: 17px;
+}
+
+.ark-generation-history-status {
+    top: 8px;
+    left: 8px;
+}
+
+.ark-generation-history-status[data-status="succeeded"] {
+    color: #a6e3b6;
+}
+
+.ark-generation-history-status[data-status="failed"],
+.ark-generation-history-status[data-status="expired"] {
+    color: #ffb9b9;
+}
+
+.ark-generation-history-unavailable {
+    right: 8px;
+    bottom: 8px;
+}
+
+.ark-generation-history-card-body {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 7px;
+    padding: 12px 3px 5px;
+}
+
+.ark-generation-history-model-row {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.ark-generation-history-model-row strong,
+.ark-generation-history-task-id {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ark-generation-history-model-row strong {
+    font-weight: 500;
+}
+
+.ark-generation-history-draft {
+    flex-shrink: 0;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--foreground) 6%, transparent);
+    color: color-mix(in srgb, var(--foreground) 62%, transparent);
+    font-size: 10px;
+}
+
+.ark-generation-history-task-id {
+    color: color-mix(in srgb, var(--foreground) 58%, transparent);
+    font-size: 11px;
+    user-select: text;
+}
+
+.ark-generation-history-prompt {
+    display: -webkit-box;
+    min-height: 36px;
+    overflow: hidden;
+    margin: 0;
+    color: color-mix(in srgb, var(--foreground) 62%, transparent);
+    font-size: 12px;
+    line-height: 18px;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.ark-generation-history-card .ark-generation-history-details-button {
+    align-self: flex-start;
+    padding-inline: 0;
+    color: color-mix(in srgb, var(--foreground) 72%, transparent);
+}
+
+.ark-generation-history-detail-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 1fr);
+    align-items: start;
+    gap: 24px;
+    max-height: 72vh;
+    overflow: auto;
+}
+
+.ark-generation-history-detail-media {
+    min-width: 0;
+    overflow: hidden;
+    border-radius: 12px;
+    background: var(--surface-card);
+}
+
+@media (max-width: 800px) {
+    .ark-generation-history-detail-layout { grid-template-columns: minmax(0, 1fr); }
+}
+
+.ark-generation-history-specs,
+.ark-generation-history-time {
+    display: flex;
+    gap: 9px;
+    color: color-mix(in srgb, var(--foreground) 48%, transparent);
+    font-size: 11px;
+    line-height: 17px;
+}
+
+.ark-generation-history-specs:empty {
+    display: none;
+}
+
+.ark-generation-history-time {
+    justify-content: space-between;
+    font-variant-numeric: tabular-nums;
+}
+
+.ark-generation-history-task-error {
+    display: -webkit-box;
+    overflow: hidden;
+    margin: 0;
+    color: var(--destructive);
+    font-size: 11px;
+    line-height: 18px;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.ark-generation-history-preview .canvas-video-player {
+    width: 100%;
+    max-height: 70vh;
+    border-radius: 12px;
+}
+
+.ark-generation-history-preview-id {
+    margin: 12px 0 0;
+    color: color-mix(in srgb, var(--foreground) 55%, transparent);
+    font-family: monospace;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+    .ark-generation-history-channel {
+        flex: 1;
+        min-width: 180px;
+    }
+
+    .ark-generation-history-hint {
+        width: 100%;
+    }
+
+    .ark-generation-history-search {
+        order: 1;
+        width: 100%;
+    }
+}
+

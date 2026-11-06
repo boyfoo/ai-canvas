@@ -47,11 +47,10 @@ export function CometCard({ containerClassName, className, rotateDepth = 5.5, tr
     const rotateX = useTransform(springY, [-0.5, 0.5], [-rotateDepth, rotateDepth]);
     const rotateY = useTransform(springX, [-0.5, 0.5], [rotateDepth, -rotateDepth]);
     const translateX = useTransform(springX, [-0.5, 0.5], [-translateDepth, translateDepth]);
-    const translateY = useTransform(springY, [-0.5, 0.5], [translateDepth, -translateDepth]);
     const glareX = useTransform(springX, [-0.5, 0.5], [12, 88]);
     const glareY = useTransform(springY, [-0.5, 0.5], [8, 92]);
     const glareBackground = useMotionTemplate`radial-gradient(circle at ${glareX}% ${glareY}%, rgba(255,255,255,.78) 0%, rgba(255,255,255,.24) 22%, rgba(255,255,255,0) 66%)`;
-    const motionStyle: MotionStyle = motionEnabled && motionActive ? { ...(style as MotionStyle), rotateX, rotateY, x: translateX, y: translateY } : { ...(style as MotionStyle) };
+    const motionStyle: MotionStyle = motionEnabled && motionActive ? { ...(style as MotionStyle), rotateX, rotateY, x: translateX } : { ...(style as MotionStyle) };
 
     const clearSettleTimer = useCallback(() => {
         if (settleTimerRef.current === null) return;

@@ -544,7 +544,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                             type="button"
                             // 版本徽标必须能在节点参数面板打开时继续点击；它是版本对比的稳定入口，
                             // 不能被 resize handle 或面板的 textarea 覆盖。
-                            className="absolute left-3 top-3 z-[var(--node-z-overlay)] grid size-7 place-items-center rounded-[var(--r-full)] border p-0.5 text-[var(--node-badge-fs)] font-semibold leading-none backdrop-blur-md transition-[transform,background,border-color,box-shadow] hover:-translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 motion-reduce:hover:translate-y-0"
+                            className="absolute left-3 top-3 z-[var(--node-z-overlay)] grid size-7 place-items-center rounded-[var(--r-full)] border p-0.5 text-[var(--node-badge-fs)] font-semibold leading-none backdrop-blur-md transition-[transform,background,border-color,box-shadow] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
                             style={{
                                 background: data.metadata.versionPrimary ? theme.accent.primarySoft : theme.toolbar.panel,
                                 borderColor: data.metadata.versionPrimary ? theme.accent.primary : theme.toolbar.border,

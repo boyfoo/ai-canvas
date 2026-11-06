@@ -105,7 +105,6 @@ export function CanvasNodeEmotionPanel({ dataUrl, imageWidth, imageHeight, chara
                 <motion.button
                     type="button"
                     disabled={generating}
-                    whileHover={reducedMotion || generating ? undefined : { y: -1 }}
                     whileTap={reducedMotion || generating ? undefined : { scale: 0.97 }}
                     className="flex h-8 shrink-0 items-center gap-1.5 rounded-[var(--dock-item-radius)] px-3 text-[var(--fs-label)] font-semibold disabled:cursor-wait disabled:opacity-55"
                     style={{ background: theme.node.activeStroke, color: theme.node.panel }}

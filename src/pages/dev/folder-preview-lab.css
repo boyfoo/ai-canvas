@@ -227,7 +227,6 @@
 .folder-preview-lab-open:hover,
 .folder-preview-lab-drawer-header button:hover {
     background: var(--library-surface-hover);
-    transform: translateY(-2px);
 }
 
 .folder-preview-lab-drawer {
@@ -291,7 +290,6 @@
 
 .folder-preview-lab-asset:hover {
     background: var(--library-surface-hover);
-    transform: translateY(-2px);
 }
 
 .folder-preview-lab-asset img {

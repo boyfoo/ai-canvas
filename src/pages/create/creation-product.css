@@ -30,7 +30,7 @@
 .app-product-workspace .creation-home .creation-submit.is-icon-only .creation-submit-action span { display: none; }
 .app-product-workspace .creation-home .creation-submit.is-icon-only .creation-submit-action svg { width: 18px; height: 18px; }
 .app-product-workspace .creation-home .creation-submit.is-icon-only.ant-btn:disabled .creation-submit-action { background: var(--user-surface-hover); color: var(--user-ink-muted); opacity: .48; }
-.app-product-workspace .creation-home .creation-submit.is-icon-only.ant-btn:not(:disabled):hover .creation-submit-action { background: var(--user-action-bg-hover); transform: translateY(-1px); }
+.app-product-workspace .creation-home .creation-submit.is-icon-only.ant-btn:not(:disabled):hover .creation-submit-action { background: var(--user-action-bg-hover); }
 .creation-submit-cost { display: inline-flex; align-items: center; gap: 4px; color: var(--user-ink-muted); font-size: 12px; padding-inline: 8px; }
 .creation-submit-cost svg { width: 14px; height: 14px; }
 @layer utilities {
@@ -39,8 +39,7 @@
     .app-product-workspace .creation-home .creation-submit.ant-btn .creation-submit-action span { font-size: 13px; font-weight: 600; }
     .app-product-workspace .creation-home .creation-submit.ant-btn .creation-submit-action svg { width: 17px; height: 17px; color: currentColor; transition: transform var(--user-motion); }
     .app-product-workspace .creation-home .creation-submit.ant-btn:disabled .creation-submit-action { background: var(--user-surface-hover); color: var(--user-ink-muted); }
-    .app-product-workspace .creation-home .creation-submit.ant-btn:not(:disabled):hover .creation-submit-action { background: var(--user-action-bg-hover); transform: translateY(-1px); }
-    .app-product-workspace .creation-home .creation-submit.ant-btn:not(:disabled):hover .creation-submit-action svg { transform: translateY(-1px); }
+    .app-product-workspace .creation-home .creation-submit.ant-btn:not(:disabled):hover .creation-submit-action { background: var(--user-action-bg-hover); }
     .app-product-workspace .creation-home .creation-submit.ant-btn:not(:disabled):active .creation-submit-action { background: var(--user-action-bg-active); transform: scale(.97); }
     .app-product-workspace .creation-home .creation-chat-composer.is-thread .creation-submit.ant-btn .creation-submit-action { height: 34px; padding: 0 14px; }
 }
@@ -50,9 +49,9 @@
 .creation-inspiration-filters button:hover { background: var(--user-surface-hover); }
 .creation-inspiration-filters button[aria-pressed="true"] { background: var(--user-ink); color: var(--user-surface); }
 .creation-inspiration-filters button:focus-visible { outline: 2px solid var(--user-accent); outline-offset: 2px; }
-.creation-inspiration-overlay { position: absolute; inset: auto 12px 12px; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 12px; border-radius: var(--user-radius-control); background: var(--user-surface); color: var(--user-ink); font-size: 12px; transform: translateY(6px); opacity: 0; transition: opacity var(--user-motion), transform var(--user-motion); }
+.creation-inspiration-overlay { position: absolute; inset: auto 12px 12px; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 12px; border-radius: var(--user-radius-control); background: var(--user-surface); color: var(--user-ink); font-size: 12px; opacity: 0; transition: opacity var(--user-motion); }
 .creation-inspiration-overlay svg { width: 14px; height: 14px; transform: rotate(45deg); }
-.creation-featured-card:hover .creation-inspiration-overlay, .creation-featured-card:focus-visible .creation-inspiration-overlay { opacity: 1; transform: translateY(0); }
+.creation-featured-card:hover .creation-inspiration-overlay, .creation-featured-card:focus-visible .creation-inspiration-overlay { opacity: 1; }
 .creation-inspiration-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-top: 24px; color: var(--user-ink-muted); font-size: 12px; }
 .creation-inspiration-footer details { max-width: 60ch; }
 .creation-inspiration-footer summary { cursor: pointer; padding-block: 8px; }
@@ -79,7 +78,6 @@
 .app-user-workspace .creation-voice-trigger.ant-btn:focus-visible {
     background: var(--user-surface-hover) !important;
     color: var(--user-ink) !important;
-    transform: translateY(-1px);
     box-shadow: 0 8px 18px color-mix(in srgb, var(--user-ink) 8%, transparent);
 }
 .app-user-workspace .creation-chat-control > svg:first-child,
@@ -92,7 +90,6 @@
     border-color: var(--user-border-strong);
     background: var(--user-surface-hover);
     color: var(--user-ink);
-    transform: translateY(-1px);
 }
 .app-user-workspace .creation-launchpad .creation-reference-add-button:active:not(:disabled) { transform: scale(.97); }
 @media (prefers-reduced-motion: reduce) {

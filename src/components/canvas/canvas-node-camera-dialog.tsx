@@ -458,7 +458,6 @@ export function CanvasNodeCameraPanel({
                 </div>
                 <motion.button
                     type="button"
-                    whileHover={reducedMotion ? undefined : { y: -1 }}
                     whileTap={reducedMotion ? undefined : { scale: 0.97 }}
                     className="canvas-node-camera-apply flex h-7 items-center gap-1.5 rounded-[var(--dock-item-radius)] border px-3.5 text-[var(--fs-label)] font-semibold transition-colors"
                     style={{ borderColor: theme.node.activeStroke, color: theme.node.activeStroke, background: "transparent" }}

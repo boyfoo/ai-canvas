@@ -1,7 +1,7 @@
 import dayjs from "dayjs";
 import { createClientId } from "@/lib/client-id";
 import { APP_STATE_STORE_NAME, localForageInstance } from "@/lib/localforage-storage";
-import { scopedStorageKey } from "@/lib/user-scope";
+import { getActiveUserScope, scopedStorageKey } from "@/lib/user-scope";
 import { browserVideoProvider } from "@/services/providers/ark-video-provider";
 import { ArkFileReferenceError } from "@/services/providers/ark-file-reference";
 import { channelConnectionSignature, resolveModelChannel, useConfigStore, type ModelChannel } from "@/stores/use-config-store";
@@ -15,14 +15,94 @@ type BrowserTaskRecord = {
     base_url: string;
     request?: Record<string, unknown>;
 };
+
+export type BrowserGenerationSubmission = {
+    local_task_id: string;
+    provider_task_id?: string;
+    prompt: string;
+    parameters: Record<string, string | number | boolean>;
+};
+
 const store = localForageInstance(APP_STATE_STORE_NAME);
 const queries = new Map<string, Promise<GenerationTask>>();
 const unsavedConnections = new Map<string, ModelChannel>();
 const now = () => dayjs().format("YYYY-MM-DD HH:mm:ss");
-const prefix = () => `${scopedStorageKey("infinite-canvas:provider-tasks")}:`;
+const prefix = (scope?: string) => `${scopedStorageKey("infinite-canvas:provider-tasks", scope)}:`;
 const key = (id: string) => `${prefix()}${id}`;
 const operationLock = (operationId: string) => `${prefix()}operation:${operationId}`;
 export const isBrowserGenerationTask = (id: string) => id.startsWith("browser-task-");
+
+const SUBMISSION_PARAMETER_KEYS = [
+    "model", "resolution", "ratio", "duration", "frames", "framespersecond", "seed",
+    "generate_audio", "watermark", "draft", "draft_task_id", "return_last_frame", "camera_fixed",
+    "service_tier", "priority", "execution_expires_after", "output_format",
+] as const;
+
+function assertSubmissionScope(scope: string, signal?: AbortSignal) {
+    if (signal?.aborted || getActiveUserScope() !== scope) throw new DOMException("已取消读取本地任务记录", "AbortError");
+}
+
+function submissionSummary(record: BrowserTaskRecord | null): BrowserGenerationSubmission | undefined {
+    const task = record?.task;
+    if (!task || typeof task.id !== "string" || !isBrowserGenerationTask(task.id) || typeof task.prompt !== "string") return undefined;
+    const parameters: BrowserGenerationSubmission["parameters"] = {};
+    try {
+        const input: unknown = JSON.parse(task.inputJson || "null");
+        const values = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>).parameters : undefined;
+        if (values && typeof values === "object" && !Array.isArray(values)) {
+            for (const name of SUBMISSION_PARAMETER_KEYS) {
+                const value = (values as Record<string, unknown>)[name];
+                if (typeof value === "string" || typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value))) parameters[name] = value;
+            }
+        }
+    } catch { /* 旧记录或无效 JSON 没有可展示的参数。 */ }
+    return {
+        local_task_id: task.id,
+        provider_task_id: typeof task.providerRequestId === "string" ? task.providerRequestId : undefined,
+        prompt: task.prompt,
+        parameters,
+    };
+}
+
+/** 只读取当前账号的本应用提示词记录，不查询上游或刷新任务状态。 */
+export async function getBrowserGenerationSubmission(task_id: string, signal?: AbortSignal): Promise<BrowserGenerationSubmission | undefined> {
+    const scope = getActiveUserScope();
+    const capturedPrefix = prefix(scope);
+    assertSubmissionScope(scope, signal);
+    if (!isBrowserGenerationTask(task_id)) return undefined;
+    const record = await store.getItem<BrowserTaskRecord>(`${capturedPrefix}${task_id}`);
+    assertSubmissionScope(scope, signal);
+    return record?.task?.id === task_id ? submissionSummary(record) : undefined;
+}
+
+/** 云端任务只关联同账号、同连接及服务地址下精确匹配的本地提交记录。 */
+export async function listBrowserGenerationSubmissions(channel: ModelChannel, provider_task_ids: readonly string[], signal?: AbortSignal): Promise<Record<string, BrowserGenerationSubmission>> {
+    const scope = getActiveUserScope();
+    const capturedPrefix = prefix(scope);
+    const channelId = channel.id;
+    const providerId = channel.provider_id;
+    const baseUrl = channel.baseUrl.replace(/\/+$/, "");
+    const wanted = new Set(provider_task_ids.filter(Boolean));
+    const submissions: Record<string, BrowserGenerationSubmission> = Object.create(null);
+    assertSubmissionScope(scope, signal);
+    if (!providerId || !wanted.size) return submissions;
+    const keys = await store.keys();
+    assertSubmissionScope(scope, signal);
+    const records = await Promise.all(keys.filter(item => item.startsWith(capturedPrefix)).map(item => store.getItem<BrowserTaskRecord>(item)));
+    assertSubmissionScope(scope, signal);
+    const ambiguous = new Set<string>();
+    for (const record of records) {
+        const providerTaskId = record?.task?.providerRequestId;
+        if (!record || record.channel_id !== channelId || record.provider_id !== providerId || record.base_url !== baseUrl || !providerTaskId || !wanted.has(providerTaskId) || ambiguous.has(providerTaskId)) continue;
+        const summary = submissionSummary(record);
+        if (!summary) continue;
+        if (submissions[providerTaskId] && submissions[providerTaskId].local_task_id !== summary.local_task_id) {
+            delete submissions[providerTaskId];
+            ambiguous.add(providerTaskId);
+        } else submissions[providerTaskId] = summary;
+    }
+    return submissions;
+}
 
 function notify(task: GenerationTask, event = "canvas:task-updated") {
     window.dispatchEvent(new CustomEvent(event, { detail: { task } }));

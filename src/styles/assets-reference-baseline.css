@@ -2,6 +2,7 @@
 .assets-library-source-rail-inner { display: flex; flex-direction: column; gap: 4px; padding: 14px 12px; }
 .generation-history-page .assets-library-hero { min-height: 92px !important; }
 .generation-history-page .assets-library-hero .app-page-header { height: 64px !important; min-height: 64px !important; gap: 0; padding-bottom: 0 !important; }
+.app-product-workspace .generation-history-page .assets-library-hero > .app-section-page-header > div:last-child { justify-content: flex-end; }
 /* 个人资产库与生成历史共用同一套纵向页头节奏。 */
 .assets-library-page:not(.generation-history-page) .assets-library-hero { min-height: 92px !important; gap: 0 !important; }
 .assets-library-page:not(.generation-history-page) .assets-library-hero .app-page-header { height: 64px !important; min-height: 64px !important; gap: 0; padding-bottom: 0 !important; }
@@ -64,6 +65,25 @@
 .generation-history-more { margin: 24px 0 0; display: flex; justify-content: center; }
 .generation-history-more button { min-height: 36px; padding: 0 16px; border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent); border-radius: 999px; background: transparent; color: color-mix(in srgb, var(--foreground) 72%, transparent); font-size: 12px; }
 .generation-history-more button:disabled { opacity: .55; }
+
+/* 本地历史保留方形缩略图；控件与缺图说明各自占据稳定区域。 */
+.generation-history-page .generation-history-thumb { overflow: hidden; }
+.generation-history-page .generation-history-thumb > :is(img, video, .cached-resource-image-shell, .generation-history-missing-preview) { position: absolute; inset: 0; display: block; width: 100%; height: 100%; min-height: 0; }
+.generation-history-page .generation-history-thumb .generation-history-missing-preview { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; min-height: 0; gap: 4px; padding: 32px 8px 42px; line-height: 14px; }
+.generation-history-page .generation-history-thumb .generation-history-missing-preview > * { min-width: 0; max-width: 100%; }
+.generation-history-page .generation-history-thumb .generation-history-missing-preview strong { line-height: 18px; }
+.generation-history-page .generation-history-hover-actions { inset: auto 8px 8px auto; }
+.generation-history-page .generation-history-hover-actions button { width: 28px; height: 28px; flex: 0 0 28px; padding: 0; }
+.generation-history-page .generation-history-duration { max-width: calc(100% - 80px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.generation-history-page .generation-history-select { padding: 0; border-color: rgba(255,255,255,.16); }
+.generation-history-page .generation-history-select:not(.is-selected):hover { border-color: rgba(255,255,255,.24); }
+.generation-history-page .generation-history-select.is-selected { border-color: #fff; }
+.generation-history-page .generation-history-card .generation-history-thumb :is(.generation-history-select, .generation-history-hover-actions > button):not(:disabled) { transform: none !important; transition-property: opacity, background-color, border-color, color !important; }
+.generation-history-page .generation-history-card .generation-history-thumb .generation-history-hover-actions > button:not(:disabled):is(:hover, :active) { background: rgba(0,0,0,.4) !important; color: #fff !important; }
+.generation-history-page .generation-history-card .generation-history-thumb .generation-history-hover-actions > button:not(:disabled):last-child:is(:hover, :active) { color: #e74c3c !important; }
+.generation-history-page .generation-history-card .generation-history-thumb .generation-history-select.is-selected:is(:hover, :active) { background: #fff !important; color: #111 !important; }
+.generation-history-page :is(.generation-history-select, .generation-history-hover-actions > button):focus-visible { outline: 2px solid var(--ring) !important; outline-offset: 2px; }
+
 @media (max-width: 720px) {
     .generation-history-content { width: 100%; padding: 16px; }
     .generation-history-grid { grid-template-columns: repeat(2, 142px); }

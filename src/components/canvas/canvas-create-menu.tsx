@@ -149,7 +149,6 @@ function CanvasCreateCommandGrid({ commands, variant }: { commands: CanvasCreate
                     disabled={Boolean(command.disabledReason)}
                     aria-disabled={Boolean(command.disabledReason)}
                     aria-description={command.disabledReason}
-                    whileHover={reducedMotion ? undefined : { y: -1 }}
                     whileTap={reducedMotion ? undefined : { scale: 0.98 }}
                     transition={aceternityMotion.spring.dock}
                     className={cn(

@@ -743,7 +743,6 @@
 .workflow-history button + button { margin-top: 7px; }
 .workflow-history button:hover,
 .workflow-history button.is-active { border-color: var(--workspace-border-strong); background: var(--surface-hover); }
-.workflow-history button:hover { transform: translateY(-1px); }
 .workflow-history button.is-active { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--workspace-accent) 55%, transparent); }
 .workflow-history img,
 .workflow-history video,

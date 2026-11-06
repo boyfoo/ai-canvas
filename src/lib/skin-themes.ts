@@ -68,7 +68,6 @@ export type SkinComponentTokens = {
     focusRingWidth: number;
     iconSize: number;
     buttonFontWeight: number;
-    hoverLift: number;
     motionFast: number;
     motionNormal: number;
     shadowStyle: SkinShadowStyle;
@@ -256,7 +255,6 @@ export const SKIN_COMPONENT_NUMBER_FIELDS: readonly SkinComponentNumberField[] =
     { key: "focusRingWidth", label: "键盘焦点环", suffix: "px", min: 1, max: 4 },
     { key: "iconSize", label: "标准图标尺寸", suffix: "px", min: 12, max: 24 },
     { key: "buttonFontWeight", label: "按钮字重", suffix: "", min: 400, max: 700, step: 50 },
-    { key: "hoverLift", label: "卡片悬停抬升", suffix: "px", min: 0, max: 4 },
     { key: "motionFast", label: "快速反馈时长", suffix: "ms", min: 0, max: 400, step: 10 },
     { key: "motionNormal", label: "常规过渡时长", suffix: "ms", min: 0, max: 800, step: 10 },
 ] as const;
@@ -385,7 +383,6 @@ export const DEFAULT_CLASSIC_SKIN: SkinDefinition = {
             focusRingWidth: 2,
             iconSize: 16,
             buttonFontWeight: 500,
-            hoverLift: 1,
             motionFast: 120,
             motionNormal: 180,
             shadowStyle: "soft",
@@ -482,7 +479,6 @@ const MANAGED_VARIABLES = [
     "--control-border-width",
     "--focus-ring-width",
     "--icon-size",
-    "--theme-hover-lift",
     "--motion-instant",
     "--motion-state",
     "--elevation-card",
@@ -753,7 +749,6 @@ export function skinCSSVariables(skin: SkinDefinition, mode: SkinThemeMode): Rec
         "--control-border-width": `${component.borderWidth}px`,
         "--focus-ring-width": `${component.focusRingWidth}px`,
         "--icon-size": `${component.iconSize}px`,
-        "--theme-hover-lift": `${component.hoverLift}px`,
         "--motion-instant": `${component.motionFast}ms`,
         "--motion-state": `${component.motionNormal}ms`,
         ...shadows,

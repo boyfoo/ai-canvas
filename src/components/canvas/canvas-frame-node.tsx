@@ -255,7 +255,7 @@ export const CanvasFrameNode = React.memo(function CanvasFrameNode({
             onMouseLeave={() => onHoverEnd?.(data.id)}
         >
             {workflow && header}
-            {/* 帧节点同样禁用指针跟随 3D 位移，hover 使用 CSS 静态抬升 */}
+            {/* 帧节点同样禁用指针跟随 3D 位移。 */}
             <CometCard
                 containerClassName="h-full w-full"
                 className={folder && collapsed ? "canvas-folder-shell overflow-visible" : `canvas-frame-shell overflow-hidden rounded-[var(--dock-radius)] border${folder ? " canvas-folder-expanded" : ""}`}

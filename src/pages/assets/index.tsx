@@ -1,8 +1,9 @@
 import { ArrowDownUp, AudioLines, Box, Check, CheckCheck, Clapperboard, Copy, Download, FileText, FileUp, FileX2, FolderOpen, FolderPlus, History, Image as ImageIcon, LayoutGrid, List, Maximize2, MoreHorizontal, Pause, PencilLine, Play, Plus, RotateCcw, SlidersHorizontal, Trash2, Upload, Volume2, VolumeX, X, ZoomIn, ZoomOut, type LucideIcon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { App, Button, Drawer, Dropdown, Form, Input, Modal, Popover, Progress, Select, Space, Tag, Typography } from "antd";
 import type { MenuProps } from "antd";
+import dayjs from "dayjs";
 import { useNavigate, useSearchParams } from "react-router";
 
 import { CollectionGrid, PageHeader, PaginationBar, WorkspacePage } from "@/components/layout/workspace-page";
@@ -18,6 +19,7 @@ import {
     mergeHistoryLibraryAssets,
 } from "@/components/assets/asset-view-session";
 import { Switch } from "@/components/ui/base/switch";
+import { SegmentedControl } from "@/components/ui/base/segmented-control";
 import { ownedResourceIdFromMediaRef } from "@/services/api/resources";
 import { useResourceVideoPlayback } from "@/hooks/use-resource-video-playback";
 import { downloadOwnedOrBrowserMedia, reportOwnedMediaSave } from "@/services/browser-media-save";
@@ -33,6 +35,9 @@ import { uploadImage } from "@/services/image-storage";
 import { resolveMediaUrl, uploadMediaFile } from "@/services/file-storage";
 import { flushAssetStorePersistence, useAssetStore, type Asset, type AssetCategory, type AssetKind, type ImageAsset } from "@/stores/use-asset-store";
 import { exportAssets, readAssetPackage } from "./asset-transfer";
+import { ArkGenerationHistory } from "./ark-generation-history";
+import { GenerationHistoryDetails } from "./generation-history-details";
+import { getBrowserGenerationSubmission, isBrowserGenerationTask } from "@/services/browser-generation-tasks";
 import { startOperation } from "@/stores/use-operation-progress";
 import { assetStorageUsageQueryKey } from "./asset-storage-usage";
 import { loadAssetLibraryPage, localSavedRemotePendingMessage } from "@/services/local-workspace-sync";
@@ -103,6 +108,7 @@ export default function AssetsPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const sourceTab = searchParams.get("tab") === "history" ? "history" : "personal";
+    const historySource = searchParams.get("source") === "ark" ? "ark" : "local";
     const queryClient = useQueryClient();
     const copyText = useCopyText();
     const [form] = Form.useForm<AssetFormValues>();
@@ -270,7 +276,7 @@ export default function AssetsPage() {
             kind: historyKind === "all" ? undefined : historyKind,
             signal,
         }),
-        enabled: canonicalReads && sessionHydrated && sourceTab === "history",
+        enabled: canonicalReads && sessionHydrated && sourceTab === "history" && historySource === "local",
         placeholderData: (previousData) => previousData,
     });
     useEffect(() => {
@@ -748,7 +754,33 @@ export default function AssetsPage() {
         }
     };
 
+    const sourceNavigation = (
+        <aside className="assets-library-source-rail" aria-label="资产来源导航">
+            <div className="assets-library-source-rail-inner">
+                <button type="button" className={cn("assets-library-source-rail-item", sourceTab === "history" && "is-active")} aria-current={sourceTab === "history" ? "page" : undefined} onClick={sourceTab === "history" ? undefined : () => navigate("/assets?tab=history")}>
+                    <span className="assets-library-source-rail-icon"><History className="size-3.5" /></span>
+                    <span>生成历史</span><span className="assets-filter-count" title="本地生成记录数">{generationHistoryCount}</span>
+                </button>
+                <button type="button" className={cn("assets-library-source-rail-item", sourceTab === "personal" && "is-active")} aria-current={sourceTab === "personal" ? "page" : undefined} onClick={sourceTab === "personal" ? undefined : () => navigate("/assets")}>
+                    <span className="assets-library-source-rail-icon"><FolderOpen className="size-3.5" /></span>
+                    <span>个人资产库</span><span className="assets-filter-count">{totalAssets}</span>
+                </button>
+            </div>
+        </aside>
+    );
+
     if (sourceTab === "history") {
+        const sourceSwitcher = (
+            <SegmentedControl
+                value={historySource}
+                ariaLabel="生成历史来源"
+                options={[{ value: "local", label: "本地记录" }, { value: "ark", label: "火山云端" }]}
+                onChange={(source) => navigate(source === "ark" ? "/assets?tab=history&source=ark" : "/assets?tab=history")}
+            />
+        );
+        if (historySource === "ark") {
+            return <ArkGenerationHistory onBack={() => navigate("/assets")} sourceSwitcher={sourceSwitcher} sourceNavigation={sourceNavigation} />;
+        }
         const localHistoryAssets = activeAssets;
         const localGenerated = localHistoryAssets.filter(isWorkspaceGeneratedHistoryAsset);
         const visibleHistoryAssets = canonicalReads ? historyAssets : localHistoryAssets;
@@ -762,23 +794,28 @@ export default function AssetsPage() {
         if (canonicalReads && historyQuery.isError && historyPage <= 1 && !historyAssets.length) {
             return (
                 <WorkspacePage grid className="library-page assets-library-page canvas-library-page generation-history-page">
+                    <div className="studio-band assets-library-hero"><PageHeader title="生成历史" actions={sourceSwitcher} /></div>
                     <WorkspaceErrorState title="生成历史读取失败" description="请稍后重试。" actionLabel="重试" onRetry={() => void historyQuery.refetch()} />
+                    {sourceNavigation}
                 </WorkspacePage>
             );
         }
         if (canonicalReads && !historyQuery.isSuccess && historyPage <= 1 && !historyAssets.length) {
             return (
                 <WorkspacePage grid className="library-page assets-library-page canvas-library-page generation-history-page">
+                    <div className="studio-band assets-library-hero"><PageHeader title="生成历史" actions={sourceSwitcher} /></div>
                     <WorkspaceLoadingState label="正在读取生成历史" detail="按页读取已保存的素材。" />
+                    {sourceNavigation}
                 </WorkspacePage>
             );
         }
         return (
             <GenerationHistorySurface
+                sourceSwitcher={sourceSwitcher}
+                sourceNavigation={sourceNavigation}
                 assets={visibleHistoryAssets}
                 generatedTotal={generatedTotal}
                 generatedKindCounts={generatedKindCounts}
-                libraryTotal={totalAssets}
                 kind={canonicalReads ? historyKind : undefined}
                 hasMore={canonicalReads ? Boolean(historyQuery.data?.canonicalHasMore ?? historyQuery.data?.hasMore) : false}
                 loadingMore={canonicalReads && historyQuery.isFetching}
@@ -797,7 +834,6 @@ export default function AssetsPage() {
                     if (historyQuery.isPlaceholderData) return;
                     setHistoryPage((current) => current + 1);
                 } : undefined}
-                onSelectPersonal={() => navigate("/assets?tab=personal")}
                 onDownload={downloadImage}
                 onDelete={deleteHistoryAsset}
             />
@@ -1050,20 +1086,7 @@ export default function AssetsPage() {
                         </section>
                     </div>
                 </div>
-                <aside className="assets-library-source-rail" aria-label="资产来源导航">
-                    <div className="assets-library-source-rail-inner">
-                        <button type="button" className="assets-library-source-rail-item" onClick={() => navigate("/assets?tab=history")}>
-                            <span className="assets-library-source-rail-icon"><History className="size-3.5" /></span>
-                            <span>生成历史</span>
-                            <span className="assets-filter-count">{generationHistoryCount}</span>
-                        </button>
-                        <button type="button" className="assets-library-source-rail-item is-active" aria-current="page">
-                            <span className="assets-library-source-rail-icon"><FolderOpen className="size-3.5" /></span>
-                            <span>个人资产库</span>
-                            <span className="assets-filter-count">{totalAssets}</span>
-                        </button>
-                    </div>
-                </aside>
+                {sourceNavigation}
             </WorkspacePage>
 
             <Modal
@@ -1489,31 +1512,31 @@ function AssetsBatchBar({
 }
 
 function GenerationHistorySurface({
+    sourceSwitcher,
+    sourceNavigation,
     assets,
     generatedTotal,
     generatedKindCounts,
-    libraryTotal,
     kind,
     hasMore = false,
     loadingMore = false,
     loadMoreError = false,
     onKindChange,
     onLoadMore,
-    onSelectPersonal,
     onDownload,
     onDelete,
 }: {
+    sourceSwitcher: ReactNode;
+    sourceNavigation: ReactNode;
     assets: LibraryAsset[];
     generatedTotal: number;
     generatedKindCounts: Record<string, number>;
-    libraryTotal: number;
     kind?: GenerationHistoryKind;
     hasMore?: boolean;
     loadingMore?: boolean;
     loadMoreError?: boolean;
     onKindChange?: (kind: GenerationHistoryKind) => void;
     onLoadMore?: () => void;
-    onSelectPersonal: () => void;
     onDownload: (asset: LibraryAsset) => void;
     onDelete: (asset: LibraryAsset) => Promise<boolean | undefined>;
 }) {
@@ -1524,6 +1547,27 @@ function GenerationHistorySurface({
     const [pendingDelete, setPendingDelete] = useState<LibraryAsset[]>([]);
     const [deleting, setDeleting] = useState(false);
     const deleteInFlight = useRef(false);
+    const userId = useUserStore((state) => state.user?.id || "");
+    const previewTaskId = typeof previewAsset?.metadata?.taskId === "string" ? previewAsset.metadata.taskId : "";
+    const submission = useQuery({
+        queryKey: ["local-generation-history-submission", userId, previewTaskId],
+        queryFn: async ({ signal }) => (await getBrowserGenerationSubmission(previewTaskId, signal)) ?? null,
+        enabled: Boolean(previewAsset && userId && isBrowserGenerationTask(previewTaskId)),
+        gcTime: 0,
+        retry: false,
+        refetchOnWindowFocus: false,
+    });
+    const previewFields = previewAsset ? [
+        { label: "名称", value: previewAsset.title },
+        { label: "媒体类型", value: previewAsset.kind === "video" ? "视频" : previewAsset.kind === "audio" ? "音频" : "图片" },
+        { label: "创建时间", value: formatAssetDateTime(previewAsset.createdAt) },
+        { label: "更新时间", value: formatAssetDateTime(previewAsset.updatedAt) },
+        ...(previewTaskId ? [{ label: "本地任务 ID", value: previewTaskId }] : []),
+        ...(submission.data?.provider_task_id ? [{ label: "火山任务 ID", value: submission.data.provider_task_id }] : []),
+        ...(previewAsset.kind === "video" || previewAsset.kind === "image" ? [{ label: "尺寸", value: previewAsset.data.width > 0 && previewAsset.data.height > 0 ? `${previewAsset.data.width} × ${previewAsset.data.height}` : "未记录" }] : []),
+        ...(previewAsset.kind === "video" || previewAsset.kind === "audio" ? [{ label: "时长", value: formatAssetClock(previewAsset.data.durationMs) || "—" }] : []),
+        { label: "来源", value: previewAsset.source || "生成任务" },
+    ] : [];
     const confirmHistoryDelete = async () => {
         if (deleteInFlight.current || !pendingDelete.length) return;
         deleteInFlight.current = true;
@@ -1576,8 +1620,9 @@ function GenerationHistorySurface({
                 <PageHeader
                     title="生成历史"
                     actions={
-                        <div className="assets-header-actions">
+                        <div className="flex flex-wrap items-center gap-2">
                             <button type="button" className="assets-header-compact-button" aria-label={sortDescending ? "按时间倒序" : "按时间正序"} title={sortDescending ? "最新优先" : "最早优先"} onClick={() => setSortDescending((value) => !value)}><ArrowDownUp className="size-4" /></button>
+                            {sourceSwitcher}
                         </div>
                     }
                 />
@@ -1630,18 +1675,7 @@ function GenerationHistorySurface({
                     )
                 ) : null}
             </div>
-            <aside className="assets-library-source-rail" aria-label="资产来源导航">
-                <div className="assets-library-source-rail-inner">
-                    <button type="button" className="assets-library-source-rail-item is-active" aria-current="page">
-                        <span className="assets-library-source-rail-icon"><History className="size-3.5" /></span>
-                        <span>生成历史</span><span className="assets-filter-count">{counts.all}</span>
-                    </button>
-                    <button type="button" className="assets-library-source-rail-item" onClick={onSelectPersonal}>
-                        <span className="assets-library-source-rail-icon"><FolderOpen className="size-3.5" /></span>
-                        <span>个人资产库</span><span className="assets-filter-count">{libraryTotal}</span>
-                    </button>
-                </div>
-            </aside>
+            {sourceNavigation}
         </WorkspacePage>
         <Modal
             className="library-modal library-confirm-modal"
@@ -1659,16 +1693,25 @@ function GenerationHistorySurface({
             {pendingDelete.length === 1 ? `删除「${pendingDelete[0].title}」后将无法恢复。` : `删除已选择的 ${pendingDelete.length} 个素材后将无法恢复。`}仍被画布或任务引用的文件会保留，其余文件将同步清理。
         </Modal>
         <Drawer className="assets-generation-preview-drawer" open={Boolean(previewAsset)} title={previewAsset?.title || "生成结果预览"} onClose={() => setPreviewAsset(null)} size="default">
-            {previewAsset ? <div className="generation-history-preview"><AssetMediaPreview asset={previewAsset} alt={previewAsset.title} className="generation-history-preview-media" fallback={<GenerationHistoryMissingPreview asset={previewAsset} />} /><div className="generation-history-preview-meta"><strong>{previewAsset.title}</strong><span>{previewAsset.kind === "video" ? "视频" : previewAsset.kind === "audio" ? "音频" : "图片"} · 本地生成</span><span>来源：{previewAsset.source || "生成任务"}</span>{typeof previewAsset.metadata?.taskId === "string" ? <span>任务 ID：{previewAsset.metadata.taskId}</span> : null}{typeof previewAsset.metadata?.generationEffectKey === "string" ? <span>生成标识：{previewAsset.metadata.generationEffectKey}</span> : null}</div></div> : null}
+            {previewAsset ? <div className="generation-history-preview">
+                <AssetMediaPreview asset={previewAsset} alt={previewAsset.title} className="generation-history-preview-media" fallback={<GenerationHistoryMissingPreview asset={previewAsset} detail />} />
+                <GenerationHistoryDetails
+                    fields={previewFields}
+                    submission={submission.data ?? undefined}
+                    prompt={typeof previewAsset.metadata?.prompt === "string" ? previewAsset.metadata.prompt : undefined}
+                    loading={submission.isFetching}
+                    error={submission.isError}
+                    emptyPromptMessage="本地没有保存这条任务的提示词。"
+                />
+            </div> : null}
         </Drawer>
         </>
     );
 }
 
-function GenerationHistoryMissingPreview({ asset }: { asset: LibraryAsset }) {
+function GenerationHistoryMissingPreview({ asset, detail = false }: { asset: LibraryAsset; detail?: boolean }) {
     const kind = asset.kind === "video" ? "视频" : asset.kind === "audio" ? "音频" : "图片";
-    const taskId = typeof asset.metadata?.taskId === "string" ? asset.metadata.taskId : "任务记录存在";
-    return <div className="generation-history-missing-preview"><strong>生成{kind}暂不可用</strong><span>{taskId}</span><small>原始生成资源未找到或已失效</small></div>;
+    return <div className="generation-history-missing-preview"><strong>{kind}暂不可用</strong><small>{detail ? "原始媒体无法读取，任务信息仍可查看" : "点击查看任务详情"}</small></div>;
 }
 
 function AssetsEmptyState({ onImport }: { onImport: () => void }) {
@@ -2013,9 +2056,8 @@ function historyDay(value: string) {
 }
 
 function formatAssetDateTime(value: string) {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "-";
-    return date.toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+    const date = dayjs(value);
+    return date.isValid() ? date.format("YYYY-MM-DD HH:mm:ss") : "—";
 }
 
 function audioWaveBars(seed: string) {
